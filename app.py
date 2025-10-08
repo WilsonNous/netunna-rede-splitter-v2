@@ -1,76 +1,116 @@
-from flask import Flask, jsonify, request, render_template
-from splitter_core import process_file
-from validator import validate_file
-from mover import move_processed_file
-from logger import log_operation
-from notifier import send_alert
+from flask import Flask, request, jsonify, render_template, send_from_directory
 import os
+from splitter_core import process_file
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__)
 
+# Diretórios padrão
 INPUT_DIR = "input"
 OUTPUT_DIR = "output"
 ERROR_DIR = "erro"
 LOG_DIR = "logs"
 
-@app.route("/")
-def index():
-    """Painel Web"""
-    return render_template("dashboard.html")
+for d in [INPUT_DIR, OUTPUT_DIR, ERROR_DIR, LOG_DIR]:
+    os.makedirs(d, exist_ok=True)
 
+# ==============================
+# Página principal (Dashboard)
+# ==============================
+@app.route("/")
+def home():
+    files_input = os.listdir(INPUT_DIR)
+    files_output = os.listdir(OUTPUT_DIR)
+    return render_template("index.html", files_input=files_input, files_output=files_output)
+
+# ==============================
+# API: Scan diretórios
+# ==============================
 @app.route("/api/scan", methods=["GET"])
 def scan_files():
-    files = os.listdir(INPUT_DIR)
-    return jsonify({"arquivos": files})
+    """Lista arquivos disponíveis em input/output"""
+    return jsonify({
+        "input": os.listdir(INPUT_DIR),
+        "output": os.listdir(OUTPUT_DIR),
+        "erro": os.listdir(ERROR_DIR)
+    })
 
+# ==============================
+# API: Upload de arquivo
+# ==============================
+@app.route("/api/upload", methods=["POST"])
+def upload_file():
+    """Recebe arquivo do robô local e salva na pasta /input"""
+    if "file" not in request.files:
+        return jsonify({"erro": "Nenhum arquivo enviado."}), 400
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"erro": "Nome de arquivo vazio."}), 400
+    save_path = os.path.join(INPUT_DIR, file.filename)
+    file.save(save_path)
+    print(f"📤 Arquivo recebido: {file.filename}")
+    return jsonify({"mensagem": f"Arquivo {file.filename} recebido com sucesso."}), 200
+
+# ==============================
+# API: Processar arquivo
+# ==============================
 @app.route("/api/process", methods=["POST"])
 def process_endpoint():
+    """Processa o arquivo informado e gera os separados"""
     data = request.get_json()
     filename = data.get("filename")
     if not filename:
-        return jsonify({"erro": "Informe o nome do arquivo"}), 400
-
-    input_path = os.path.join(INPUT_DIR, filename)
-    if not os.path.exists(input_path):
-        return jsonify({"erro": "Arquivo não encontrado"}), 404
+        return jsonify({"erro": "Nome do arquivo não informado."}), 400
+    path_in = os.path.join(INPUT_DIR, filename)
+    if not os.path.exists(path_in):
+        return jsonify({"erro": f"Arquivo {filename} não encontrado."}), 404
 
     try:
-        generated_files = process_file(input_path, OUTPUT_DIR)
-        is_valid, summary = validate_file(input_path, generated_files)
-        log_operation(filename, is_valid, summary)
-
-        if not is_valid:
-            send_alert(
-                assunto=f"[ALERTA] Divergência detectada em {filename}",
-                corpo=f"Os totais do arquivo {filename} não conferem.\n\n{summary}",
-                destino="edi@cliente.com.br"
-            )
-            move_processed_file(input_path, ERROR_DIR)
-        else:
-            move_processed_file(input_path, OUTPUT_DIR)
-
-        return jsonify({"status": "ok", "gerados": len(generated_files), "valido": is_valid, "resumo": summary})
+        generated = process_file(path_in, OUTPUT_DIR)
+        msg = f"{len(generated)} arquivos gerados em {OUTPUT_DIR}."
+        print(f"✅ {msg}")
+        return jsonify({"mensagem": msg, "arquivos": generated}), 200
     except Exception as e:
-        send_alert(
-            assunto=f"[ERRO] Falha no processamento de {filename}",
-            corpo=str(e),
-            destino="edi@cliente.com.br"
-        )
-        move_processed_file(input_path, ERROR_DIR)
+        print(f"❌ Erro ao processar {filename}: {e}")
         return jsonify({"erro": str(e)}), 500
 
-@app.route("/api/status", methods=["GET"])
-def get_status():
-    path = os.path.join(LOG_DIR, "operacoes.csv")
-    if not os.path.exists(path):
-        return jsonify({"mensagem": "Nenhum log encontrado"}), 200
-    with open(path, "r", encoding="utf-8") as f:
-        logs = f.read().splitlines()[-10:]
-    return jsonify({"ultimos_logs": logs})
+# ==============================
+# API: Download de arquivo gerado
+# ==============================
+@app.route("/api/download/<filename>", methods=["GET"])
+def download_file(filename):
+    """Permite baixar um arquivo gerado (via API ou painel web)"""
+    safe_path = os.path.join(OUTPUT_DIR, filename)
+    if not os.path.exists(safe_path):
+        return jsonify({"erro": f"Arquivo {filename} não encontrado em output."}), 404
+    print(f"📦 Download solicitado: {filename}")
+    return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
 
+# ==============================
+# API: Download múltiplo (ZIP opcional)
+# ==============================
+@app.route("/api/download-all", methods=["GET"])
+def download_all():
+    """Compacta todos os arquivos do output em um ZIP para download único"""
+    import zipfile
+    from io import BytesIO
+
+    zip_stream = BytesIO()
+    with zipfile.ZipFile(zip_stream, "w") as zf:
+        for fname in os.listdir(OUTPUT_DIR):
+            fpath = os.path.join(OUTPUT_DIR, fname)
+            if os.path.isfile(fpath):
+                zf.write(fpath, arcname=fname)
+    zip_stream.seek(0)
+    print("📦 Download ZIP de todos os arquivos gerados solicitado.")
+    return send_from_directory(
+        directory=OUTPUT_DIR,
+        path=".",
+        as_attachment=True,
+        download_name="rede_splitter_output.zip"
+    )
+
+# ==============================
+# Inicialização
+# ==============================
 if __name__ == "__main__":
-    os.makedirs(INPUT_DIR, exist_ok=True)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(ERROR_DIR, exist_ok=True)
-    os.makedirs(LOG_DIR, exist_ok=True)
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=10000)
