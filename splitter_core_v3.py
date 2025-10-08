@@ -21,7 +21,7 @@ def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
 
 def enviar_email_alerta(arquivo, tipo, total_trailer, total_proc, detalhe):
-    """Envia e-mail se ocorrer divergência (com fallback seguro em caso de erro)."""
+    """Envia e-mail se ocorrer divergência — com fallback seguro (sem travar app)."""
     if not os.path.exists(EMAIL_CONFIG):
         print("⚠️ Configuração de e-mail não encontrada.")
         return
@@ -53,7 +53,7 @@ def enviar_email_alerta(arquivo, tipo, total_trailer, total_proc, detalhe):
         msg["Subject"] = assunto
         msg.attach(MIMEText(corpo, "plain", "utf-8"))
 
-        with smtplib.SMTP(smtp_server, smtp_port, timeout=20) as server:
+        with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
             server.starttls()
             server.login(smtp_user, smtp_pass)
             server.sendmail(smtp_user, recipients, msg.as_string())
@@ -61,14 +61,11 @@ def enviar_email_alerta(arquivo, tipo, total_trailer, total_proc, detalhe):
         print(f"📧 Alerta enviado para {recipients}")
 
     except Exception as e:
-        # Fallback seguro
-        fallback_msg = f"❌ Falha ao enviar e-mail: {e}"
-        print(fallback_msg)
-
-        # Grava log no arquivo para auditoria
-        ensure_dir("logs")
-        with open(os.path.join("logs", "email_falhas.log"), "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now()}] {fallback_msg}\n")
+        fallback_msg = f"[{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}] Falha ao enviar e-mail: {e}"
+        print(f"❌ {fallback_msg}")
+        os.makedirs("logs", exist_ok=True)
+        with open(os.path.join("logs", "email_falhas.log"), "a", encoding="utf-8") as logf:
+            logf.write(fallback_msg + "\n")
 
 # ==============================
 # Função principal
