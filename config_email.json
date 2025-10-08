@@ -1,0 +1,7 @@
+{
+  "smtp_server": "smtp.office365.com",
+  "smtp_port": 587,
+  "username": "automacao.edi@netunna.com.br",
+  "password": "@Utomc@o",
+  "recipients": ["wilson.martins@netunna.com.br"]
+}
