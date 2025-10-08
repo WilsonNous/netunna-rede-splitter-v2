@@ -30,19 +30,32 @@ def home():
     return render_template("index.html", files_input=files_input, files_output=files_output, logs=logs)
 
 # ==============================
-# API: Upload
+# API: Upload de arquivo (agora processa automático)
 # ==============================
 @app.route("/api/upload", methods=["POST"])
 def upload_file():
+    """Recebe arquivo e processa automaticamente após upload."""
     if "file" not in request.files:
         return jsonify({"erro": "Nenhum arquivo enviado."}), 400
     file = request.files["file"]
     if file.filename == "":
         return jsonify({"erro": "Nome de arquivo vazio."}), 400
+
     save_path = os.path.join(INPUT_DIR, file.filename)
     file.save(save_path)
     print(f"📤 Arquivo recebido: {file.filename}")
-    return jsonify({"mensagem": f"Arquivo {file.filename} recebido com sucesso."}), 200
+
+    # Processamento automático
+    try:
+        resultado = process_file(save_path, OUTPUT_DIR, ERROR_DIR)
+        print(f"✅ Processado automaticamente: {file.filename}")
+        return jsonify({
+            "mensagem": f"Arquivo {file.filename} recebido e processado automaticamente.",
+            "resultado": resultado
+        }), 200
+    except Exception as e:
+        print(f"❌ Erro ao processar {file.filename}: {e}")
+        return jsonify({"erro": str(e)}), 500
 
 # ==============================
 # API: Processar
