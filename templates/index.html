@@ -49,14 +49,22 @@ async function loadFiles() {
   const data = await res.json();
   const tbody = document.querySelector('#fileTable tbody');
   tbody.innerHTML = '';
-  data.arquivos.forEach(f => {
+
+  if (data.input && data.input.length > 0) {
+    data.input.forEach(f => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${f}</td>
+        <td><button onclick="processFile('${f}')">▶ Processar</button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } else {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${f}</td>
-      <td><button onclick="processFile('${f}')">▶ Processar</button></td>
-    `;
+    tr.innerHTML = `<td colspan="2"><i>Nenhum arquivo encontrado em /input</i></td>`;
     tbody.appendChild(tr);
-  });
+  }
+
   loadLogs();
 }
 
@@ -67,20 +75,26 @@ async function processFile(filename) {
     body: JSON.stringify({ filename })
   });
   const data = await res.json();
-  if (data.status === 'ok') {
-    alert('✅ Processado com sucesso!\\n' + data.resumo);
+
+  if (data.mensagem) {
+    alert('✅ ' + data.mensagem);
   } else {
     alert('⚠️ Falha: ' + (data.erro || 'Erro desconhecido'));
   }
+
   loadFiles();
 }
 
 async function loadLogs() {
-  const res = await fetch('/api/status');
-  const data = await res.json();
-  document.getElementById('logBox').innerText = data.ultimos_logs
-    ? data.ultimos_logs.join('\\n')
-    : 'Sem logs até o momento.';
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    document.getElementById('logBox').innerText = data.ultimos_logs
+      ? data.ultimos_logs.join('\\n')
+      : 'Sem logs até o momento.';
+  } catch (e) {
+    document.getElementById('logBox').innerText = 'Logs indisponíveis.';
+  }
 }
 
 loadFiles();
