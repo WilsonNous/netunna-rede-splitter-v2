@@ -21,9 +21,9 @@ def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
 
 def enviar_email_alerta(arquivo, tipo, total_trailer, total_proc, detalhe):
-    """Envia e-mail se ocorrer divergência"""
+    """Envia e-mail se ocorrer divergência (com fallback seguro em caso de erro)."""
     if not os.path.exists(EMAIL_CONFIG):
-        print("⚠️ Arquivo de configuração de e-mail não encontrado.")
+        print("⚠️ Configuração de e-mail não encontrada.")
         return
 
     with open(EMAIL_CONFIG, "r", encoding="utf-8") as f:
@@ -37,34 +37,38 @@ def enviar_email_alerta(arquivo, tipo, total_trailer, total_proc, detalhe):
 
     assunto = f"⚠️ Divergência detectada no arquivo {arquivo}"
     corpo = f"""
-    Olá, equipe EDI Netunna 👋
+    [Alerta Automático Netunna EDI]
 
-    Durante o processamento automático, foi detectada uma divergência no arquivo {arquivo}.
-
-    📁 Arquivo: {arquivo}
-    📊 Tipo: {tipo}
-    🔢 Total no trailer: {total_trailer}
-    📈 Total processado: {total_proc}
-
-    🟠 Detalhe: {detalhe}
-
-    O arquivo foi movido para a pasta /erro para análise manual.
+    Arquivo: {arquivo}
+    Tipo: {tipo}
+    Trailer: {total_trailer}
+    Processado: {total_proc}
+    Detalhe: {detalhe}
     """
 
-    msg = MIMEMultipart()
-    msg["From"] = f"Netunna EDI Automations <{smtp_user}>"
-    msg["To"] = ", ".join(recipients)
-    msg["Subject"] = assunto
-    msg.attach(MIMEText(corpo, "plain", "utf-8"))
-
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
+        msg = MIMEMultipart()
+        msg["From"] = f"Netunna EDI Automations <{smtp_user}>"
+        msg["To"] = ", ".join(recipients)
+        msg["Subject"] = assunto
+        msg.attach(MIMEText(corpo, "plain", "utf-8"))
+
+        with smtplib.SMTP(smtp_server, smtp_port, timeout=20) as server:
             server.starttls()
             server.login(smtp_user, smtp_pass)
             server.sendmail(smtp_user, recipients, msg.as_string())
-        print(f"📧 Alerta de divergência enviado para {recipients}")
+
+        print(f"📧 Alerta enviado para {recipients}")
+
     except Exception as e:
-        print(f"❌ Falha ao enviar e-mail: {e}")
+        # Fallback seguro
+        fallback_msg = f"❌ Falha ao enviar e-mail: {e}"
+        print(fallback_msg)
+
+        # Grava log no arquivo para auditoria
+        ensure_dir("logs")
+        with open(os.path.join("logs", "email_falhas.log"), "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now()}] {fallback_msg}\n")
 
 # ==============================
 # Função principal
