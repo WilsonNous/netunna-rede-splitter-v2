@@ -83,13 +83,15 @@ def download_file(filename):
     return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
 
 # ==============================
-# API: Download ZIP
+# API: Download ZIP (corrigido)
 # ==============================
+from flask import send_file
+import zipfile
+from io import BytesIO
+
 @app.route("/api/download-all", methods=["GET"])
 def download_all():
-    import zipfile
-    from io import BytesIO
-
+    """Compacta todos os arquivos do output em um ZIP para download único"""
     zip_stream = BytesIO()
     with zipfile.ZipFile(zip_stream, "w") as zf:
         for fname in os.listdir(OUTPUT_DIR):
@@ -97,10 +99,10 @@ def download_all():
             if os.path.isfile(fpath):
                 zf.write(fpath, arcname=fname)
     zip_stream.seek(0)
-
-    return send_from_directory(
-        directory=OUTPUT_DIR,
-        path=".",
+    print("📦 Download ZIP solicitado — enviando para cliente/agente...")
+    return send_file(
+        zip_stream,
+        mimetype="application/zip",
         as_attachment=True,
         download_name="rede_splitter_output.zip"
     )
