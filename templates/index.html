@@ -2,102 +2,151 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Netunna REDE Splitter v2</title>
+  <title>Netunna REDE Splitter v3</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f6f7fb; margin: 0; }
+    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; }
     header { background: #ff6d00; color: white; padding: 15px 25px; }
-    h2 { margin: 0; }
+    h1 { margin: 0; font-size: 24px; }
     main { padding: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    section { background: #fff; border-radius: 8px; padding: 15px; margin-bottom: 20px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h2 { color: #333; font-size: 18px; margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 14px; }
     th { background: #ff9100; color: white; }
-    button { background: #ff6d00; color: white; border: none; padding: 6px 14px; cursor: pointer; border-radius: 4px; }
+    tr:nth-child(even) { background: #fafafa; }
+    button { background: #ff6d00; color: white; border: none; padding: 6px 14px;
+             border-radius: 4px; cursor: pointer; }
     button:hover { background: #ff9100; }
-    .log { background: #fff; padding: 10px; border: 1px solid #ddd; height: 220px; overflow-y: scroll; }
-    footer { text-align: center; font-size: 13px; padding: 10px; color: #666; margin-top: 20px; }
+    .ok { color: green; font-weight: bold; }
+    .erro { color: red; font-weight: bold; }
+    footer { text-align: center; font-size: 13px; color: #777; margin-top: 20px; padding: 10px; }
   </style>
 </head>
 <body>
-<header>
-  <h2>🧩 Netunna REDE Splitter v2</h2>
-  <small>Monitoramento e Processamento Automático</small>
-</header>
+  <header>
+    <h1>🧩 Netunna REDE Splitter v3</h1>
+    <small>Processamento, Validação e Logs</small>
+  </header>
 
-<main>
-  <section>
-    <h3>📂 Arquivos de Entrada</h3>
-    <button onclick="loadFiles()">🔄 Atualizar Lista</button>
-    <table id="fileTable">
-      <thead><tr><th>Arquivo</th><th>Ações</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
+  <main>
+    <section>
+      <h2>📂 Arquivos de Entrada</h2>
+      <button onclick="loadFiles()">🔄 Atualizar Lista</button>
+      <table id="inputTable">
+        <thead><tr><th>Arquivo</th><th>Ações</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
 
-  <section>
-    <h3>🧾 Últimos Logs</h3>
-    <div class="log" id="logBox">Carregando...</div>
-  </section>
-</main>
+    <section>
+      <h2>📦 Arquivos Gerados</h2>
+      <button onclick="loadOutput()">🔄 Atualizar</button>
+      <button onclick="downloadAll()">⬇️ Baixar Todos (ZIP)</button>
+      <table id="outputTable">
+        <thead><tr><th>Arquivo</th><th>Ações</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
 
-<footer>
-  © Netunna Automations — REDE Splitter v2 | Atualização Automática diária às 03:00
-</footer>
+    <section>
+      <h2>🧾 Histórico de Processamentos</h2>
+      <table id="logTable">
+        <thead>
+          <tr>
+            <th>Data/Hora</th>
+            <th>Arquivo</th>
+            <th>Tipo</th>
+            <th>Total Trailer</th>
+            <th>Total Processado</th>
+            <th>Status</th>
+            <th>Detalhe</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
 
-<script>
-async function loadFiles() {
-  const res = await fetch('/api/scan');
-  const data = await res.json();
-  const tbody = document.querySelector('#fileTable tbody');
-  tbody.innerHTML = '';
+  <footer>
+    © Netunna Automations — REDE Splitter v3 | Atualização diária automática às 03:00
+  </footer>
 
-  if (data.input && data.input.length > 0) {
-    data.input.forEach(f => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${f}</td>
-        <td><button onclick="processFile('${f}')">▶ Processar</button></td>
-      `;
-      tbody.appendChild(tr);
-    });
-  } else {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="2"><i>Nenhum arquivo encontrado em /input</i></td>`;
-    tbody.appendChild(tr);
-  }
+  <script>
+    async function loadFiles() {
+      const res = await fetch('/api/status');
+      const data = await res.json();
 
-  loadLogs();
-}
+      const resScan = await fetch('/api/scan');
+      const scan = await resScan.json();
 
-async function processFile(filename) {
-  const res = await fetch('/api/process', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ filename })
-  });
-  const data = await res.json();
+      const tbody = document.querySelector('#inputTable tbody');
+      tbody.innerHTML = '';
+      scan.input.forEach(f => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${f}</td>
+                        <td><button onclick="processFile('${f}')">▶ Processar</button></td>`;
+        tbody.appendChild(tr);
+      });
 
-  if (data.mensagem) {
-    alert('✅ ' + data.mensagem);
-  } else {
-    alert('⚠️ Falha: ' + (data.erro || 'Erro desconhecido'));
-  }
+      const tbodyOut = document.querySelector('#outputTable tbody');
+      tbodyOut.innerHTML = '';
+      scan.output.forEach(f => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${f}</td>
+                        <td><button onclick="downloadFile('${f}')">⬇️ Baixar</button></td>`;
+        tbodyOut.appendChild(tr);
+      });
 
-  loadFiles();
-}
+      loadLogs(data.logs);
+    }
 
-async function loadLogs() {
-  try {
-    const res = await fetch('/api/status');
-    const data = await res.json();
-    document.getElementById('logBox').innerText = data.ultimos_logs
-      ? data.ultimos_logs.join('\\n')
-      : 'Sem logs até o momento.';
-  } catch (e) {
-    document.getElementById('logBox').innerText = 'Logs indisponíveis.';
-  }
-}
+    async function processFile(filename) {
+      const res = await fetch('/api/process', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ filename })
+      });
+      const data = await res.json();
+      alert(data.mensagem || data.erro);
+      loadFiles();
+    }
 
-loadFiles();
-</script>
+    async function loadOutput() {
+      loadFiles();
+    }
+
+    async function downloadFile(filename) {
+      window.location.href = `/api/download/${filename}`;
+    }
+
+    async function downloadAll() {
+      window.location.href = '/api/download-all';
+    }
+
+    function loadLogs(logs) {
+      const tbody = document.querySelector('#logTable tbody');
+      tbody.innerHTML = '';
+      if (!logs || logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
+        return;
+      }
+      logs.reverse().forEach(l => {
+        const tr = document.createElement('tr');
+        const statusClass = l.status === 'OK' ? 'ok' : 'erro';
+        tr.innerHTML = `
+          <td>${l.data_hora}</td>
+          <td>${l.arquivo}</td>
+          <td>${l.tipo}</td>
+          <td>${l.total_trailer}</td>
+          <td>${l.total_processado}</td>
+          <td class="${statusClass}">${l.status}</td>
+          <td>${l.detalhe}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    loadFiles();
+  </script>
 </body>
 </html>
