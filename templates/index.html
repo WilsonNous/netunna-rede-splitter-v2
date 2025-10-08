@@ -15,9 +15,6 @@
     th, td { padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 14px; }
     th { background: #ff9100; color: white; }
     tr:nth-child(even) { background: #fafafa; }
-    button { background: #ff6d00; color: white; border: none; padding: 6px 14px;
-             border-radius: 4px; cursor: pointer; }
-    button:hover { background: #ff9100; }
     .ok { color: green; font-weight: bold; }
     .erro { color: red; font-weight: bold; }
     footer { text-align: center; font-size: 13px; color: #777; margin-top: 20px; padding: 10px; }
@@ -26,25 +23,25 @@
 <body>
   <header>
     <h1>🧩 Netunna REDE Splitter v3</h1>
-    <small>Processamento, Validação e Logs</small>
+    <small>Processamento Automático, Validação e Logs</small>
   </header>
 
   <main>
     <section>
-      <h2>📂 Arquivos de Entrada</h2>
+      <h2>📂 Arquivos Enviados (Input)</h2>
       <button onclick="loadFiles()">🔄 Atualizar Lista</button>
       <table id="inputTable">
-        <thead><tr><th>Arquivo</th><th>Ações</th></tr></thead>
+        <thead><tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
 
     <section>
-      <h2>📦 Arquivos Gerados</h2>
-      <button onclick="loadOutput()">🔄 Atualizar</button>
+      <h2>📦 Arquivos Gerados (Output)</h2>
+      <button onclick="loadFiles()">🔄 Atualizar</button>
       <button onclick="downloadAll()">⬇️ Baixar Todos (ZIP)</button>
       <table id="outputTable">
-        <thead><tr><th>Arquivo</th><th>Ações</th></tr></thead>
+        <thead><tr><th>Arquivo</th><th>Ação</th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
@@ -69,72 +66,57 @@
   </main>
 
   <footer>
-    © Netunna Automations — REDE Splitter v3 | Atualização diária automática às 03:00
+    © Netunna Automations — REDE Splitter v3 | Atualização automática a cada 30s
   </footer>
 
   <script>
     async function loadFiles() {
-      const res = await fetch('/api/status');
-      const data = await res.json();
-
-      const resScan = await fetch('/api/scan');
-      const scan = await resScan.json();
-
-      const tbody = document.querySelector('#inputTable tbody');
-      tbody.innerHTML = '';
-      scan.input.forEach(f => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${f}</td>
-                        <td><button onclick="processFile('${f}')">▶ Processar</button></td>`;
-        tbody.appendChild(tr);
-      });
-
-      const tbodyOut = document.querySelector('#outputTable tbody');
-      tbodyOut.innerHTML = '';
-      scan.output.forEach(f => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${f}</td>
-                        <td><button onclick="downloadFile('${f}')">⬇️ Baixar</button></td>`;
-        tbodyOut.appendChild(tr);
-      });
-
-      loadLogs(data.logs);
-    }
-
-    async function processFile(filename) {
       try {
-        const res = await fetch('/api/process', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename })
-        });
-    
-        const data = await res.json();
-        if (data.erro) {
-          alert('❌ Erro ao processar: ' + data.erro);
-          return;
+        // status e logs
+        const resStatus = await fetch('/api/status');
+        const data = await resStatus.json();
+
+        // scan dos diretórios
+        const resScan = await fetch('/api/scan');
+        const scan = await resScan.json();
+
+        // arquivos de entrada
+        const tbodyIn = document.querySelector('#inputTable tbody');
+        tbodyIn.innerHTML = '';
+        if (scan.input.length === 0) {
+          tbodyIn.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;
+        } else {
+          scan.input.forEach(f => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${f}</td><td>${formatDateTime()}</td>`;
+            tbodyIn.appendChild(tr);
+          });
         }
-    
-        alert('✅ ' + (data.mensagem || 'Processamento concluído.'));
-    
-        // Aguarda alguns segundos para o servidor atualizar o log
-        setTimeout(loadFiles, 2000);
+
+        // arquivos de saída
+        const tbodyOut = document.querySelector('#outputTable tbody');
+        tbodyOut.innerHTML = '';
+        if (scan.output.length === 0) {
+          tbodyOut.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo gerado.</td></tr>`;
+        } else {
+          scan.output.forEach(f => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${f}</td>
+                            <td><a href="/api/download/${f}" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>`;
+            tbodyOut.appendChild(tr);
+          });
+        }
+
+        // logs
+        loadLogs(data.logs);
       } catch (err) {
-        console.error('Erro no processamento:', err);
-        alert('⚠️ Falha ao processar o arquivo.');
+        console.error('Erro ao carregar dados:', err);
       }
     }
 
-    async function loadOutput() {
-      loadFiles();
-    }
-
-    async function downloadFile(filename) {
-      window.location.href = `/api/download/${filename}`;
-    }
-
-    async function downloadAll() {
-      window.location.href = '/api/download-all';
+    function formatDateTime() {
+      const d = new Date();
+      return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     }
 
     function loadLogs(logs) {
@@ -144,7 +126,7 @@
         tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
         return;
       }
-      logs.reverse().forEach(l => {
+      logs.slice().reverse().forEach(l => {
         const tr = document.createElement('tr');
         const statusClass = l.status === 'OK' ? 'ok' : 'erro';
         tr.innerHTML = `
