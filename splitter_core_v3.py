@@ -95,15 +95,17 @@ def process_file(input_path, output_dir, error_dir):
 
     filename = os.path.basename(input_path).upper()
 
-    if "EEVC" in filename:
-        tipo = "EEVC"
-        resultado = process_eevc(input_path, output_dir)
-    elif "EEVD" in filename:
-        tipo = "EEVD"
-        resultado = process_eevd(input_path, output_dir)
-    elif "EEFI" in filename:
-        tipo = "EEFI"
-        resultado = process_eefi(input_path, output_dir)
+    if "EEVC" in filename or "_VC_" in filename:
+        print("🟠 Detectado arquivo EEVC (Vendas Crédito)")
+        return process_eevc(input_path, output_dir)
+    
+    elif "EEVD" in filename or "_VD_" in filename:
+        print("🟢 Detectado arquivo EEVD (Vendas Débito)")
+        return process_eevd(input_path, output_dir)
+    
+    elif "EEFI" in filename or "_FI_" in filename:
+        print("🔵 Detectado arquivo EEFI (Financeiro)")
+        return process_eefi(input_path, output_dir)
     else:
         raise ValueError("Tipo de arquivo não reconhecido.")
 
