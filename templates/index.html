@@ -86,23 +86,23 @@
         if (scan.input.length === 0) {
           tbodyIn.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;
         } else {
-          scan.input.forEach(f => {
+          scan.input.forEach(item => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${f}</td><td>${formatDateTime()}</td>`;
+            tr.innerHTML = `<td>${item.nome}</td><td>${item.data_hora}</td>`;
             tbodyIn.appendChild(tr);
           });
         }
-
+        
         // arquivos de saída
         const tbodyOut = document.querySelector('#outputTable tbody');
         tbodyOut.innerHTML = '';
         if (scan.output.length === 0) {
           tbodyOut.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo gerado.</td></tr>`;
         } else {
-          scan.output.forEach(f => {
+          scan.output.forEach(item => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${f}</td>
-                            <td><a href="/api/download/${f}" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>`;
+            tr.innerHTML = `<td>${item.nome}</td>
+                            <td><a href="/api/download/${item.nome}" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>`;
             tbodyOut.appendChild(tr);
           });
         }
