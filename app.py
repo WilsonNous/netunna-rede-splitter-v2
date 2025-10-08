@@ -133,10 +133,12 @@ def scan_directories():
                 fpath = os.path.join(path, fname)
                 if os.path.isfile(fpath):
                     mtime = os.path.getmtime(fpath)
-                    data_hora = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M:%S")
-                    arquivos.append({"nome": fname, "data_hora": data_hora})
-            # ordena por data mais recente
-            return sorted(arquivos, key=lambda x: x["data_hora"], reverse=True)
+                    arquivos.append({
+                        "nome": fname,
+                        "data_hora": datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M:%S"),
+                        "timestamp": mtime
+                    })
+            return sorted(arquivos, key=lambda x: x["timestamp"], reverse=True)
 
         return jsonify({
             "input": listar_com_tempo(INPUT_DIR),
