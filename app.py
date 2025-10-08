@@ -121,16 +121,27 @@ def download_all():
     )
 
 # ==============================
-# API: Scan diretórios (faltante)
+# API: Scan diretórios (atualizada com data/hora)
 # ==============================
 @app.route("/api/scan", methods=["GET"])
 def scan_directories():
-    """Lista os arquivos de entrada, saída e erro"""
+    """Lista os arquivos de entrada, saída e erro com data/hora"""
     try:
+        def listar_com_tempo(path):
+            arquivos = []
+            for fname in os.listdir(path):
+                fpath = os.path.join(path, fname)
+                if os.path.isfile(fpath):
+                    mtime = os.path.getmtime(fpath)
+                    data_hora = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M:%S")
+                    arquivos.append({"nome": fname, "data_hora": data_hora})
+            # ordena por data mais recente
+            return sorted(arquivos, key=lambda x: x["data_hora"], reverse=True)
+
         return jsonify({
-            "input": os.listdir(INPUT_DIR),
-            "output": os.listdir(OUTPUT_DIR),
-            "erro": os.listdir(ERROR_DIR)
+            "input": listar_com_tempo(INPUT_DIR),
+            "output": listar_com_tempo(OUTPUT_DIR),
+            "erro": listar_com_tempo(ERROR_DIR)
         })
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
