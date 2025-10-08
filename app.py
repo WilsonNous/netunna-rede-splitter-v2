@@ -107,5 +107,20 @@ def download_all():
         download_name="rede_splitter_output.zip"
     )
 
+# ==============================
+# API: Scan diretórios (faltante)
+# ==============================
+@app.route("/api/scan", methods=["GET"])
+def scan_directories():
+    """Lista os arquivos de entrada, saída e erro"""
+    try:
+        return jsonify({
+            "input": os.listdir(INPUT_DIR),
+            "output": os.listdir(OUTPUT_DIR),
+            "erro": os.listdir(ERROR_DIR)
+        })
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
