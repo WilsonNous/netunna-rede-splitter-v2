@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Netunna REDE Splitter v2</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f6f7fb; margin: 0; }
+    header { background: #ff6d00; color: white; padding: 15px 25px; }
+    h2 { margin: 0; }
+    main { padding: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #ff9100; color: white; }
+    button { background: #ff6d00; color: white; border: none; padding: 6px 14px; cursor: pointer; border-radius: 4px; }
+    button:hover { background: #ff9100; }
+    .log { background: #fff; padding: 10px; border: 1px solid #ddd; height: 220px; overflow-y: scroll; }
+    footer { text-align: center; font-size: 13px; padding: 10px; color: #666; margin-top: 20px; }
+  </style>
+</head>
+<body>
+<header>
+  <h2>🧩 Netunna REDE Splitter v2</h2>
+  <small>Monitoramento e Processamento Automático</small>
+</header>
+
+<main>
+  <section>
+    <h3>📂 Arquivos de Entrada</h3>
+    <button onclick="loadFiles()">🔄 Atualizar Lista</button>
+    <table id="fileTable">
+      <thead><tr><th>Arquivo</th><th>Ações</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h3>🧾 Últimos Logs</h3>
+    <div class="log" id="logBox">Carregando...</div>
+  </section>
+</main>
+
+<footer>
+  © Netunna Automations — REDE Splitter v2 | Atualização Automática diária às 03:00
+</footer>
+
+<script>
+async function loadFiles() {
+  const res = await fetch('/api/scan');
+  const data = await res.json();
+  const tbody = document.querySelector('#fileTable tbody');
+  tbody.innerHTML = '';
+  data.arquivos.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${f}</td>
+      <td><button onclick="processFile('${f}')">▶ Processar</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  loadLogs();
+}
+
+async function processFile(filename) {
+  const res = await fetch('/api/process', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ filename })
+  });
+  const data = await res.json();
+  if (data.status === 'ok') {
+    alert('✅ Processado com sucesso!\\n' + data.resumo);
+  } else {
+    alert('⚠️ Falha: ' + (data.erro || 'Erro desconhecido'));
+  }
+  loadFiles();
+}
+
+async function loadLogs() {
+  const res = await fetch('/api/status');
+  const data = await res.json();
+  document.getElementById('logBox').innerText = data.ultimos_logs
+    ? data.ultimos_logs.join('\\n')
+    : 'Sem logs até o momento.';
+}
+
+loadFiles();
+</script>
+</body>
+</html>
