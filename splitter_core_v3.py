@@ -9,7 +9,7 @@ from email.mime.multipart import MIMEMultipart
 import json
 
 from logger import log_operation
-from validador import validate_file
+from validator import validate_file
 
 LOG_PATH = os.path.join("logs", "operacoes.csv")
 EMAIL_CONFIG = "config_email.json"
