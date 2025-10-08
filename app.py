@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from splitter_core import process_file
 from validator import validate_file
 from mover import move_processed_file
@@ -6,12 +6,17 @@ from logger import log_operation
 from notifier import send_alert
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")
 
 INPUT_DIR = "input"
 OUTPUT_DIR = "output"
 ERROR_DIR = "erro"
 LOG_DIR = "logs"
+
+@app.route("/")
+def index():
+    """Painel Web"""
+    return render_template("dashboard.html")
 
 @app.route("/api/scan", methods=["GET"])
 def scan_files():
