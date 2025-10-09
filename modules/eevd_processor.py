@@ -18,23 +18,28 @@ def limpar_diretorio(dir_path: str):
 
 
 def _extrair_data_nsa(header_parts: list[str], nome_arquivo: str):
-    """Extrai data (DDMMAA) e NSA de forma robusta, a partir do header ou nome."""
+    """
+    Extrai a data (DDMMAA) e o NSA a partir do header EEVD ou do nome do arquivo.
+    Layout base (EEVD Rede):
+    00,020770677,07102025,06102025,...,000043,DIARIO,...
+    """
     data_ref = "000000"
     nsa = "000"
 
-    # 🔹 1. Data do header (campo 2)
+    # 🔹 Data: campo 2 (formato DDMMAAAA → DDMMAA)
     if len(header_parts) > 2:
         campo_data = header_parts[2].strip()
         if re.fullmatch(r"\d{8}", campo_data):
-            data_ref = f"{campo_data[:2]}{campo_data[2:4]}{campo_data[6:8]}"
+            # Mantém os 2 primeiros (dia), 2 do meio (mês), 2 últimos do ano
+            data_ref = f"{campo_data[:2]}{campo_data[2:4]}{campo_data[4:6]}"
 
-    # 🔹 2. NSA do header (campo 7)
+    # 🔹 NSA: campo 7 (ex: '000043' → '043')
     if len(header_parts) > 7:
         campo_nsa = header_parts[7].strip()
         if campo_nsa.isdigit():
             nsa = campo_nsa[-3:].zfill(3)
 
-    # 🔹 3. Fallback via nome do arquivo
+    # 🔹 Fallbacks (caso header incompleto)
     if data_ref == "000000":
         m = re.search(r"(\d{6,8})", nome_arquivo)
         if m:
