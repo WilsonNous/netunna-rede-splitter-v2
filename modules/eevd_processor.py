@@ -7,13 +7,17 @@ from utils.validation_utils import validar_totais
 
 
 def to_centavos(valor_str: str) -> int:
-    """Converte string numérica do layout (sem ponto) para inteiro em centavos."""
+    """Converte string numérica do layout Rede (14 dígitos) para inteiro em centavos."""
     if not valor_str:
         return 0
-    valor_str = valor_str.strip()
-    if valor_str.isdigit():
-        return int(valor_str)
-    return 0
+    valor_str = valor_str.strip().replace(".", "").replace(",", "")
+    if not valor_str.isdigit():
+        return 0
+    valor = int(valor_str)
+    # Normaliza: trailer da Rede já vem em centavos, detalhe vem com 2 casas decimais implícitas
+    if len(valor_str) > 2:
+        return valor // 100  # converte de centavos duplicados para reais corretos
+    return valor
 
 
 def process_eevd(input_path, output_dir):
