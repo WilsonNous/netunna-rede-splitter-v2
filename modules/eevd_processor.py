@@ -1,22 +1,39 @@
 import os
+import re
 from collections import defaultdict
-from datetime import datetime
 from utils.file_utils import ensure_outfile
-from utils.validation_utils import validar_totais
+from utils.validation_utils import validar_totais, to_centavos
 
 
-def to_centavos(valor_str: str) -> int:
-    """Converte string numérica do layout Rede (14 dígitos) para inteiro em centavos."""
-    if not valor_str:
-        return 0
-    valor_str = valor_str.strip().replace(".", "").replace(",", "")
-    if not valor_str.isdigit():
-        return 0
-    return int(valor_str)  # todos os valores já são expressos em centavos no layout Rede
+def _ddmmaa_from_yyyymmdd8(d8: str) -> str:
+    """
+    Converte 'DDMMAAAA' do header (8 dígitos) para 'DDMMAA'.
+    Ex.: '05102025' -> '051025'
+    """
+    d8 = (d8 or "").strip()
+    if re.fullmatch(r"\d{8}", d8):
+        dd = d8[0:2]
+        mm = d8[2:4]
+        aa = d8[6:8]
+        return f"{dd}{mm}{aa}"
+    return "000000"
 
 
-def process_eevd(input_path, output_dir):
-    """Processa arquivo EEVD (Vendas Débito) — v3 com trailer recalculado."""
+def process_eevd(input_path: str, output_dir: str):
+    """
+    Processa arquivo EEVD (Vendas Débito) validando por VALORES em centavos.
+
+    Layout relevante (linhas CSV):
+      - Header (tipo '00'):
+          [0]=00, [1]=PV-MATRIZ, [2]=DDMMAAAA, ... [7]=NSA ...
+      - Detalhe (tipo '01'):
+          [0]=01, [1]=PV, [2]=DDMMAAAA, [3]=..., [4]=NSU/controle (não é valor),
+          [5]=..., [6]=BRUTO (centavos), [7]=DESCONTO (centavos), [8]=LIQUIDO (centavos), ...
+      - Trailer (tipo '04'):
+          [4]=TOTAL_BRUTO (centavos), [5]=TOTAL_DESCONTO (centavos), [6]=TOTAL_LIQUIDO (centavos)
+
+    Nome do arquivo gerado: PV_DDMMAA_NSA_EEVD.txt
+    """
     print("🟢 Processando EEVD (Vendas Débito)")
 
     with open(input_path, "r", encoding="utf-8", errors="replace") as f:
@@ -25,7 +42,6 @@ def process_eevd(input_path, output_dir):
     if not lines:
         raise ValueError("Arquivo EEVD vazio.")
 
-    # Header e trailer originais
     header_line = lines[0]
     trailer_line = lines[-1]
     detalhes = lines[1:-1]
@@ -33,67 +49,68 @@ def process_eevd(input_path, output_dir):
     header_parts = [p.strip() for p in header_line.split(",")]
     trailer_parts = [p.strip() for p in trailer_line.split(",")]
 
-    data_ref = header_parts[2][-6:]  # DDMMAA
-    nsa = header_parts[7][-3:].zfill(3)
+    # Data (DDMMAAA A -> DDMMAA) e NSA do arquivo-mãe
+    data_ref = _ddmmaa_from_yyyymmdd8(header_parts[2] if len(header_parts) > 2 else "")
+    nsa = (header_parts[7] if len(header_parts) > 7 else "000")[-3:].zfill(3)
 
+    # Agrupar por PV e acumular valores corretos (6=bruto, 7=desconto, 8=liquido)
     grupos = defaultdict(list)
-    totais_pv = {}
+    totais_pv = defaultdict(lambda: {"bruto": 0, "desconto": 0, "liquido": 0})
 
-    # ======== Coleta de registros e somas por PV ========
     for line in detalhes:
         parts = [p.strip() for p in line.split(",")]
-        if len(parts) < 9 or parts[0] != "01":
+        if not parts or parts[0] != "01":
             continue
+        # defensivo
+        while len(parts) < 9:
+            parts.append("")
 
         pv = parts[1]
-        bruto = to_centavos(parts[4])
-        desconto = to_centavos(parts[5])
-        liquido = to_centavos(parts[6])
+        bruto = to_centavos(parts[6])      # CORRETO: valor bruto em centavos
+        desconto = to_centavos(parts[7])   # CORRETO
+        liquido = to_centavos(parts[8])    # CORRETO
 
         grupos[pv].append(parts)
-        if pv not in totais_pv:
-            totais_pv[pv] = {"bruto": 0, "desconto": 0, "liquido": 0}
-
         totais_pv[pv]["bruto"] += bruto
         totais_pv[pv]["desconto"] += desconto
         totais_pv[pv]["liquido"] += liquido
 
-    # ======== Geração de arquivos filhos ========
-    soma_bruto_total = 0
-    soma_liquido_total = 0
-    soma_desconto_total = 0
+    # Gerar filhos por PV
     gerados = []
+    soma_bruto_total = 0
 
     for pv, registros in grupos.items():
         bruto = totais_pv[pv]["bruto"]
         desconto = totais_pv[pv]["desconto"]
         liquido = totais_pv[pv]["liquido"]
-
         soma_bruto_total += bruto
-        soma_liquido_total += liquido
-        soma_desconto_total += desconto
 
-        # Novo header (PV individual)
+        # Header do filho = header do mãe, mas com PV do filho
         header_parts_pv = header_parts.copy()
-        header_parts_pv[1] = pv
+        if len(header_parts_pv) < 8:
+            # garante índice até [7]
+            header_parts_pv += [""] * (8 - len(header_parts_pv))
+
+        header_parts_pv[1] = pv  # PV do filho
         header_line_pv = ",".join(header_parts_pv)
 
-        # Novo trailer calculado com base nos detalhes
-        trailer_parts_pv = [
-            "04",  # tipo de registro trailer
-            pv,
-            str(len(registros)).zfill(6),  # quantidade de registros detalhe
-            "000049",                      # campo fixo conforme layout original
-            str(bruto).zfill(15),          # total bruto
-            str(desconto).zfill(15),       # total desconto
-            str(liquido).zfill(15),        # total líquido
-            "000000000000000",             # campos reservados
-            "000000000000000",
-            "000000000000000",
-            "000107"                       # código fixo de fechamento
-        ]
+        # Trailer do filho = trailer do mãe, mas com PV e totais do filho
+        trailer_parts_pv = trailer_parts.copy()
+        while len(trailer_parts_pv) < 11:
+            trailer_parts_pv.append("0")
+
+        trailer_parts_pv[1] = pv
+        # campos de contagem: usar a quantidade de detalhes do PV (mantém consistência mínima)
+        trailer_parts_pv[2] = str(len(registros)).zfill(6)
+        trailer_parts_pv[3] = str(len(registros)).zfill(6)
+        # TOTAIS EM CENTAVOS (15 dígitos)
+        trailer_parts_pv[4] = str(bruto).zfill(15)
+        trailer_parts_pv[5] = str(desconto).zfill(15)
+        trailer_parts_pv[6] = str(liquido).zfill(15)
+
         trailer_line_pv = ",".join(trailer_parts_pv)
 
+        # Nome final: PV_DDMMAA_NSA_EEVD.txt
         nome_arquivo = f"{pv}_{data_ref}_{nsa}_EEVD.txt"
         out_path = ensure_outfile(output_dir, nome_arquivo)
 
@@ -104,18 +121,18 @@ def process_eevd(input_path, output_dir):
             f.write(trailer_line_pv + "\n")
 
         gerados.append(out_path)
-        print(f"🧾 Gerado: {os.path.basename(out_path)} — Bruto={bruto} Desconto={desconto} Líquido={liquido}")
+        print(f"🧾 Gerado: {os.path.basename(out_path)}")
 
-    # ======== Validação global ========
-    total_trailer_bruto = to_centavos(trailer_parts[4])
-    resultado = validar_totais(total_trailer_bruto, soma_bruto_total)
+    # === Validação do arquivo-mãe por valores (TOTAL BRUTO) ===
+    total_trailer = to_centavos(trailer_parts[4] if len(trailer_parts) > 4 else "0")
+    detalhe = validar_totais(total_trailer, soma_bruto_total)
+    status = "OK" if total_trailer == soma_bruto_total else "ERRO"
 
-    print(f"✅ Total trailer: {total_trailer_bruto:,} | Processado: {soma_bruto_total:,}")
-    print(f"🏁 {resultado}")
+    print(f"✅ Total trailer: {total_trailer} | Processado: {soma_bruto_total} | {status}")
 
     return {
-        "total_trailer": total_trailer_bruto,
+        "total_trailer": total_trailer,
         "total_processado": soma_bruto_total,
-        "status": "OK" if "OK" in resultado else "ERRO",
-        "detalhe": resultado,
+        "status": status,
+        "detalhe": detalhe,
     }
