@@ -17,28 +17,52 @@ def limpar_diretorio(dir_path: str):
     print(f"🧹 Diretório '{dir_path}' limpo antes do novo processamento.")
 
 
-def _ddmmaa_from_yyyymmdd8(d8: str) -> str:
-    """Converte 'DDMMAAAA' → 'DDMMAA'."""
-    d8 = (d8 or "").strip()
-    if re.fullmatch(r"\d{8}", d8):
-        return f"{d8[:2]}{d8[2:4]}{d8[6:8]}"
-    return "000000"
+def _extrair_data_nsa(header_parts: list[str], nome_arquivo: str):
+    """Extrai data (DDMMAA) e NSA de forma robusta, a partir do header ou nome."""
+    data_ref = "000000"
+    nsa = "000"
+
+    # 🔹 1. Data do header (campo 2)
+    if len(header_parts) > 2:
+        campo_data = header_parts[2].strip()
+        if re.fullmatch(r"\d{8}", campo_data):
+            data_ref = f"{campo_data[:2]}{campo_data[2:4]}{campo_data[6:8]}"
+
+    # 🔹 2. NSA do header (campo 7)
+    if len(header_parts) > 7:
+        campo_nsa = header_parts[7].strip()
+        if campo_nsa.isdigit():
+            nsa = campo_nsa[-3:].zfill(3)
+
+    # 🔹 3. Fallback via nome do arquivo
+    if data_ref == "000000":
+        m = re.search(r"(\d{6,8})", nome_arquivo)
+        if m:
+            data_ref = m.group(1)[-6:]
+    if nsa == "000":
+        m = re.search(r"(\d{3})\D*\.[0-9]+$", nome_arquivo)
+        if m:
+            nsa = m.group(1)
+
+    return data_ref, nsa
 
 
 def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
     """
-    Processa arquivo EEVD (Vendas Débito) — versão v3.3.
-    Agora cancelamentos (011) são gerados, mas não entram nos totais gerais.
+    Processa arquivo EEVD (Vendas Débito) — versão v3.4.
+    Corrige o uso incorreto de data_ref e NSA entre arquivos diferentes.
     """
 
     print("🟢 Processando EEVD (Vendas Débito)")
     limpar_diretorio(output_dir)
     limpar_diretorio(error_dir)
 
+    # === Estruturas sempre reinicializadas ===
     grupos = defaultdict(list)
     totais_pv = defaultdict(lambda: {"bruto": 0, "desconto": 0, "liquido": 0})
     soma_bruto_total = 0
 
+    filename = os.path.basename(input_path)
     with open(input_path, "r", encoding="utf-8", errors="replace") as f:
         lines = [l.strip() for l in f if l.strip()]
 
@@ -52,11 +76,11 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
     header_parts = [p.strip() for p in header_line.split(",")]
     trailer_parts = [p.strip() for p in trailer_line.split(",")]
 
-    data_ref = _ddmmaa_from_yyyymmdd8(header_parts[2] if len(header_parts) > 2 else "")
-    nsa = (header_parts[7] if len(header_parts) > 7 else "000")[-3:].zfill(3)
+    # ✅ Extração isolada por arquivo
+    data_ref, nsa = _extrair_data_nsa(header_parts, filename)
 
     tipos_validos = ("01", "011", "012", "013")
-    tipos_somaveis = ("01", "012", "013")  # 011 não soma no total geral
+    tipos_somaveis = ("01", "012", "013")  # 011 (cancelamento) não soma
 
     for line in detalhes:
         parts = [p.strip() for p in line.split(",")]
@@ -98,7 +122,6 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
             trailer_parts_pv.append("0")
         trailer_parts_pv[1] = pv
         trailer_parts_pv[2] = str(len(registros)).zfill(6)
-        trailer_parts_pv[3] = str(len(registros)).zfill(6)
         trailer_parts_pv[4] = str(bruto).zfill(15)
         trailer_parts_pv[5] = str(desconto).zfill(15)
         trailer_parts_pv[6] = str(liquido).zfill(15)
@@ -123,6 +146,9 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
     print(f"✅ Total trailer: {total_trailer} | Processado: {soma_bruto_total} | {status}")
 
     return {
+        "arquivo": filename,
+        "data_ref": data_ref,
+        "nsa": nsa,
         "total_trailer": total_trailer,
         "total_processado": soma_bruto_total,
         "status": status,
