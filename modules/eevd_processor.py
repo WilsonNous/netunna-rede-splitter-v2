@@ -1,8 +1,7 @@
 import os
-import csv
 from collections import defaultdict
 from datetime import datetime
-from utils.file_utils import sanitize_filename, ensure_outfile
+from utils.file_utils import ensure_outfile
 from utils.validation_utils import validar_totais
 
 
@@ -13,15 +12,11 @@ def to_centavos(valor_str: str) -> int:
     valor_str = valor_str.strip().replace(".", "").replace(",", "")
     if not valor_str.isdigit():
         return 0
-    valor = int(valor_str)
-    # Normaliza: trailer da Rede já vem em centavos, detalhe vem com 2 casas decimais implícitas
-    if len(valor_str) > 2:
-        return valor // 100  # converte de centavos duplicados para reais corretos
-    return valor
+    return int(valor_str)  # todos os valores já são expressos em centavos no layout Rede
 
 
 def process_eevd(input_path, output_dir):
-    """Processa arquivo EEVD (Vendas Débito) — versão v3 validando por valores."""
+    """Processa arquivo EEVD (Vendas Débito) — v3 com trailer recalculado."""
     print("🟢 Processando EEVD (Vendas Débito)")
 
     with open(input_path, "r", encoding="utf-8", errors="replace") as f:
@@ -30,7 +25,7 @@ def process_eevd(input_path, output_dir):
     if not lines:
         raise ValueError("Arquivo EEVD vazio.")
 
-    # Header e trailer do arquivo-mãe
+    # Header e trailer originais
     header_line = lines[0]
     trailer_line = lines[-1]
     detalhes = lines[1:-1]
@@ -44,49 +39,61 @@ def process_eevd(input_path, output_dir):
     grupos = defaultdict(list)
     totais_pv = {}
 
+    # ======== Coleta de registros e somas por PV ========
     for line in detalhes:
         parts = [p.strip() for p in line.split(",")]
-        if len(parts) < 8:
+        if len(parts) < 9 or parts[0] != "01":
             continue
 
-        if parts[0] == "01":  # Detalhe
-            pv = parts[1]
-            bruto = to_centavos(parts[4])
-            desconto = to_centavos(parts[5])
-            liquido = to_centavos(parts[6])
+        pv = parts[1]
+        bruto = to_centavos(parts[4])
+        desconto = to_centavos(parts[5])
+        liquido = to_centavos(parts[6])
 
-            grupos[pv].append(parts)
-            if pv not in totais_pv:
-                totais_pv[pv] = {"bruto": 0, "desconto": 0, "liquido": 0}
-            totais_pv[pv]["bruto"] += bruto
-            totais_pv[pv]["desconto"] += desconto
-            totais_pv[pv]["liquido"] += liquido
+        grupos[pv].append(parts)
+        if pv not in totais_pv:
+            totais_pv[pv] = {"bruto": 0, "desconto": 0, "liquido": 0}
 
+        totais_pv[pv]["bruto"] += bruto
+        totais_pv[pv]["desconto"] += desconto
+        totais_pv[pv]["liquido"] += liquido
+
+    # ======== Geração de arquivos filhos ========
+    soma_bruto_total = 0
+    soma_liquido_total = 0
+    soma_desconto_total = 0
     gerados = []
-    soma_bruto_total = soma_liquido_total = 0
 
     for pv, registros in grupos.items():
         bruto = totais_pv[pv]["bruto"]
         desconto = totais_pv[pv]["desconto"]
         liquido = totais_pv[pv]["liquido"]
+
         soma_bruto_total += bruto
         soma_liquido_total += liquido
+        soma_desconto_total += desconto
 
-        # Header personalizado (PV filho)
+        # Novo header (PV individual)
         header_parts_pv = header_parts.copy()
         header_parts_pv[1] = pv
         header_line_pv = ",".join(header_parts_pv)
 
-        # Trailer personalizado (PV filho)
-        trailer_parts_pv = trailer_parts.copy()
-        trailer_parts_pv[1] = pv
-        trailer_parts_pv[2] = str(len(registros)).zfill(6)
-        trailer_parts_pv[4] = str(bruto).zfill(15)
-        trailer_parts_pv[5] = str(desconto).zfill(15)
-        trailer_parts_pv[6] = str(liquido).zfill(15)
+        # Novo trailer calculado com base nos detalhes
+        trailer_parts_pv = [
+            "04",  # tipo de registro trailer
+            pv,
+            str(len(registros)).zfill(6),  # quantidade de registros detalhe
+            "000049",                      # campo fixo conforme layout original
+            str(bruto).zfill(15),          # total bruto
+            str(desconto).zfill(15),       # total desconto
+            str(liquido).zfill(15),        # total líquido
+            "000000000000000",             # campos reservados
+            "000000000000000",
+            "000000000000000",
+            "000107"                       # código fixo de fechamento
+        ]
         trailer_line_pv = ",".join(trailer_parts_pv)
 
-        # Nome do arquivo final: PV_DDMMAA_NSA_EEVD.txt
         nome_arquivo = f"{pv}_{data_ref}_{nsa}_EEVD.txt"
         out_path = ensure_outfile(output_dir, nome_arquivo)
 
@@ -97,23 +104,18 @@ def process_eevd(input_path, output_dir):
             f.write(trailer_line_pv + "\n")
 
         gerados.append(out_path)
-        print(f"🧾 Gerado: {os.path.basename(out_path)}")
+        print(f"🧾 Gerado: {os.path.basename(out_path)} — Bruto={bruto} Desconto={desconto} Líquido={liquido}")
 
-    # === Validação de totais (baseada em centavos) ===
-    total_trailer = to_centavos(trailer_parts[4])
-    diferenca = soma_bruto_total - total_trailer
-    if diferenca == 0:
-        detalhe = "Validação OK — valores totais consistentes."
-        status = "OK"
-    else:
-        detalhe = f"Divergência de valor: {diferenca:+,} centavos."
-        status = "ERRO"
+    # ======== Validação global ========
+    total_trailer_bruto = to_centavos(trailer_parts[4])
+    resultado = validar_totais(total_trailer_bruto, soma_bruto_total)
 
-    print(f"✅ Total trailer: {total_trailer} | Processado: {soma_bruto_total} | {status}")
+    print(f"✅ Total trailer: {total_trailer_bruto:,} | Processado: {soma_bruto_total:,}")
+    print(f"🏁 {resultado}")
 
     return {
-        "total_trailer": total_trailer,
+        "total_trailer": total_trailer_bruto,
         "total_processado": soma_bruto_total,
-        "status": status,
-        "detalhe": detalhe,
+        "status": "OK" if "OK" in resultado else "ERRO",
+        "detalhe": resultado,
     }
