@@ -4,24 +4,17 @@ from collections import defaultdict
 from utils.file_utils import ensure_outfile
 from utils.validation_utils import validar_totais, to_centavos
 
+
 # ===========================================
 # CONFIGURAÇÕES DE LIMPEZA
 # ===========================================
-PRESERVAR_OUTPUT = False   # Mantém os arquivos gerados no output?
-PRESERVAR_ERRO = False     # Mantém os arquivos na pasta erro?
+PRESERVAR_OUTPUT = False   # Mantém arquivos anteriores no output
+PRESERVAR_ERRO = False     # Mantém arquivos anteriores no erro
 # -------------------------------------------
 
 
-def _ddmmaa_from_yyyymmdd8(d8: str) -> str:
-    """Converte 'DDMMAAAA' do header (8 dígitos) para 'DDMMAA'."""
-    d8 = (d8 or "").strip()
-    if re.fullmatch(r"\d{8}", d8):
-        return f"{d8[:2]}{d8[2:4]}{d8[6:8]}"
-    return "000000"
-
-
 def limpar_diretorio(dir_path: str, preservar: bool = False):
-    """Remove arquivos do diretório, caso não seja preservado."""
+    """Limpa diretório antes de novo processamento (exceto se preservado)."""
     if not preservar:
         if not os.path.exists(dir_path):
             os.makedirs(dir_path, exist_ok=True)
@@ -33,15 +26,35 @@ def limpar_diretorio(dir_path: str, preservar: bool = False):
         print(f"🧹 Diretório '{dir_path}' limpo antes do novo processamento.")
 
 
+def _ddmmaa_from_yyyymmdd8(d8: str) -> str:
+    """Converte 'DDMMAAAA' → 'DDMMAA'."""
+    d8 = (d8 or "").strip()
+    if re.fullmatch(r"\d{8}", d8):
+        return f"{d8[:2]}{d8[2:4]}{d8[6:8]}"
+    return "000000"
+
+
+# ===========================================
+# PROCESSAMENTO EEVD
+# ===========================================
 def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
-    """Processa arquivo EEVD (Vendas Débito) validando por VALORES em centavos."""
+    """
+    Processa arquivo EEVD (Vendas Débito) — versão v3.2 validando por valores.
+
+    Suporta registros:
+    - 01  → Venda normal
+    - 011 → Cancelamento de venda
+    - 012 → Ajuste manual
+    - 013 → Devolução automática
+    """
+
     print("🟢 Processando EEVD (Vendas Débito)")
 
-    # === LIMPEZA DE CACHE E DIRETÓRIOS ===
+    # === LIMPEZA DE DIRETÓRIOS ===
     limpar_diretorio(output_dir, PRESERVAR_OUTPUT)
     limpar_diretorio(error_dir, PRESERVAR_ERRO)
 
-    # === Inicializa estruturas locais (reset total) ===
+    # === Inicializa estruturas ===
     grupos = defaultdict(list)
     totais_pv = defaultdict(lambda: {"bruto": 0, "desconto": 0, "liquido": 0})
     soma_bruto_total = 0
@@ -60,17 +73,19 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
     header_parts = [p.strip() for p in header_line.split(",")]
     trailer_parts = [p.strip() for p in trailer_line.split(",")]
 
-    # Data (DDMMAA) e NSA
+    # === Dados do header ===
     data_ref = _ddmmaa_from_yyyymmdd8(header_parts[2] if len(header_parts) > 2 else "")
     nsa = (header_parts[7] if len(header_parts) > 7 else "000")[-3:].zfill(3)
 
-    # === AGRUPAMENTO E SOMA POR PV ===
+    # === PROCESSAMENTO DOS DETALHES ===
+    tipos_validos = ("01", "011", "012", "013")
+
     for line in detalhes:
         parts = [p.strip() for p in line.split(",")]
-        if not parts or parts[0] != "01":
+        if not parts or parts[0] not in tipos_validos:
             continue
 
-        # Garante pelo menos 9 colunas
+        # Garante ao menos 9 colunas
         while len(parts) < 9:
             parts.append("")
 
@@ -84,7 +99,7 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
         totais_pv[pv]["desconto"] += desconto
         totais_pv[pv]["liquido"] += liquido
 
-    # === GERAÇÃO DOS ARQUIVOS FILHOS ===
+    # === GERAÇÃO DOS FILHOS ===
     gerados = []
     for pv, registros in grupos.items():
         bruto = totais_pv[pv]["bruto"]
@@ -92,28 +107,26 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
         liquido = totais_pv[pv]["liquido"]
         soma_bruto_total += bruto
 
-        # Header do filho (PV individual)
+        # Header (com PV substituído)
         header_parts_pv = header_parts.copy()
         if len(header_parts_pv) < 8:
             header_parts_pv += [""] * (8 - len(header_parts_pv))
         header_parts_pv[1] = pv
         header_line_pv = ",".join(header_parts_pv)
 
-        # Trailer do filho com totais do PV
+        # Trailer (com totais por PV)
         trailer_parts_pv = trailer_parts.copy()
         while len(trailer_parts_pv) < 11:
             trailer_parts_pv.append("0")
 
         trailer_parts_pv[1] = pv
-        trailer_parts_pv[2] = str(len(registros)).zfill(6)
+        trailer_parts_pv[2] = str(len(registros)).zfill(6)  # qtd registros
         trailer_parts_pv[3] = str(len(registros)).zfill(6)
         trailer_parts_pv[4] = str(bruto).zfill(15)
         trailer_parts_pv[5] = str(desconto).zfill(15)
         trailer_parts_pv[6] = str(liquido).zfill(15)
-
         trailer_line_pv = ",".join(trailer_parts_pv)
 
-        # Nome do arquivo final
         nome_arquivo = f"{pv}_{data_ref}_{nsa}_EEVD.txt"
         out_path = ensure_outfile(output_dir, nome_arquivo)
 
