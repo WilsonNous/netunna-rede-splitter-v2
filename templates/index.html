@@ -18,6 +18,12 @@
     .ok { color: green; font-weight: bold; }
     .erro { color: red; font-weight: bold; }
     footer { text-align: center; font-size: 13px; color: #777; margin-top: 20px; padding: 10px; }
+
+    /* Agrupamento por lote */
+    .lote-grupo { background: #fff; border-radius: 8px; padding: 10px 15px; margin-bottom: 20px;
+                  box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+    .lote-grupo h3 { color: #ff6d00; font-size: 16px; margin: 5px 0 10px; }
+    .resumo-output { font-weight: bold; color: #333; margin-bottom: 10px; }
   </style>
 </head>
 <body>
@@ -38,12 +44,10 @@
 
     <section>
       <h2>📦 Arquivos Gerados (Output)</h2>
+      <div class="resumo-output" id="outputSummary">📊 Nenhum lote processado ainda.</div>
       <button onclick="loadFiles()">🔄 Atualizar</button>
-      <button onclick="downloadAll()">⬇️ Baixar Todos (ZIP)</button>
-      <table id="outputTable">
-        <thead><tr><th>Arquivo</th><th>Ação</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <button onclick="downloadAll()">⬇️ Baixar ZIPs por NSA</button>
+      <div id="outputContainer"></div>
     </section>
 
     <section>
@@ -72,18 +76,16 @@
   <script>
     async function loadFiles() {
       try {
-        // status e logs
         const resStatus = await fetch('/api/status');
         const data = await resStatus.json();
 
-        // scan dos diretórios
         const resScan = await fetch('/api/scan');
         const scan = await resScan.json();
 
-        // arquivos de entrada
+        // === INPUT ===
         const tbodyIn = document.querySelector('#inputTable tbody');
         tbodyIn.innerHTML = '';
-        if (scan.input.length === 0) {
+        if (!scan.input || scan.input.length === 0) {
           tbodyIn.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;
         } else {
           scan.input.forEach(item => {
@@ -92,31 +94,76 @@
             tbodyIn.appendChild(tr);
           });
         }
-        
-        // arquivos de saída
-        const tbodyOut = document.querySelector('#outputTable tbody');
-        tbodyOut.innerHTML = '';
-        if (scan.output.length === 0) {
-          tbodyOut.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo gerado.</td></tr>`;
+
+        // === OUTPUT AGRUPADO ===
+        const outputContainer = document.getElementById("outputContainer");
+        outputContainer.innerHTML = '';
+        const summary = document.getElementById("outputSummary");
+
+        if (!scan.output || scan.output.length === 0) {
+          outputContainer.innerHTML = `<p style="text-align:center;">Nenhum arquivo gerado.</p>`;
+          summary.textContent = "📊 Nenhum lote processado ainda.";
         } else {
+          const grupos = {};
           scan.output.forEach(item => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${item.nome}</td>
-                            <td><a href="/api/download/${item.nome}" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>`;
-            tbodyOut.appendChild(tr);
+            const lote = item.lote || "NSA_000";
+            if (!grupos[lote]) grupos[lote] = [];
+            grupos[lote].push(item);
+          });
+
+          const totalLotes = Object.keys(grupos).length;
+          const totalArquivos = scan.output.length;
+          summary.textContent = `📊 ${totalLotes} lotes processados — total de ${totalArquivos} arquivos gerados.`;
+
+          Object.keys(grupos).sort().forEach(lote => {
+            const grupoDiv = document.createElement("div");
+            grupoDiv.classList.add("lote-grupo");
+            grupoDiv.innerHTML = `<h3>📦 ${lote}</h3>
+              <table>
+                <thead>
+                  <tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr>
+                </thead>
+                <tbody>
+                  ${grupos[lote].map(a => `
+                    <tr>
+                      <td>${a.nome}</td>
+                      <td>${a.data_hora}</td>
+                      <td><a href="/api/download/${encodeURIComponent(a.nome)}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>`;
+            outputContainer.appendChild(grupoDiv);
           });
         }
 
-        // logs
+        // === LOGS ===
         loadLogs(data.logs);
+
       } catch (err) {
-        console.error('Erro ao carregar dados:', err);
+        console.error("Erro ao carregar dados:", err);
       }
     }
 
-    function formatDateTime() {
-      const d = new Date();
-      return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    async function downloadAll() {
+      try {
+        const res = await fetch('/api/download-all');
+        const data = await res.json();
+
+        if (data.zips && data.zips.length > 0) {
+          alert(`Foram gerados ${data.zips.length} arquivos ZIP por NSA.`);
+          data.zips.forEach(zip => {
+            const a = document.createElement("a");
+            a.href = `/zips/${zip}`;
+            a.download = zip;
+            a.click();
+          });
+        } else {
+          alert("Nenhum ZIP foi gerado.");
+        }
+      } catch (err) {
+        alert("Erro ao gerar os ZIPs.");
+        console.error(err);
+      }
     }
 
     function loadLogs(logs) {
