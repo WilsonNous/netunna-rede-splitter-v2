@@ -103,22 +103,29 @@ import zipfile
 from io import BytesIO
 
 @app.route("/api/download-all", methods=["GET"])
-def download_all():
-    """Compacta todos os arquivos do output em um ZIP para download único"""
-    zip_stream = BytesIO()
-    with zipfile.ZipFile(zip_stream, "w") as zf:
-        for fname in os.listdir(OUTPUT_DIR):
-            fpath = os.path.join(OUTPUT_DIR, fname)
-            if os.path.isfile(fpath):
-                zf.write(fpath, arcname=fname)
-    zip_stream.seek(0)
-    print("📦 Download ZIP solicitado — enviando para cliente/agente...")
-    return send_file(
-        zip_stream,
-        mimetype="application/zip",
-        as_attachment=True,
-        download_name="rede_splitter_output.zip"
-    )
+def api_download_all():
+    """Gera ZIPs individuais por NSA (ex: NSA_041.zip, NSA_042.zip, etc)."""
+    base_output = "output"
+    zip_dir = "zips"
+    os.makedirs(zip_dir, exist_ok=True)
+
+    created_zips = []
+    for dirpath, dirnames, filenames in os.walk(base_output):
+        if not filenames:
+            continue
+        lote = os.path.basename(dirpath)
+        if not lote.startswith("NSA_"):
+            continue
+
+        zip_name = f"{lote}.zip"
+        zip_path = os.path.join(zip_dir, zip_name)
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for f in filenames:
+                full_path = os.path.join(dirpath, f)
+                zipf.write(full_path, os.path.join(lote, f))
+        created_zips.append(zip_name)
+
+    return jsonify({"zips": created_zips})
 
 # ==============================
 # API: Scan diretórios (atualizada com data/hora)
