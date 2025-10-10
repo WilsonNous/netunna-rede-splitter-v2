@@ -125,37 +125,36 @@ def download_all():
 # ==============================
 @app.route("/api/scan", methods=["GET"])
 def api_scan():
-    """Lista arquivos de saída, agora agrupados por lote (NSA_xxx)."""
+    """Lista arquivos de saída agrupados por subpasta NSA_xxx."""
+    base_input = "input"
     base_output = "output"
-    resultado = {}
+    result = {"input": [], "output": []}
 
-    if not os.path.exists(base_output):
-        os.makedirs(base_output)
+    # 🔹 Lista INPUT
+    if os.path.exists(base_input):
+        for f in sorted(os.listdir(base_input)):
+            fpath = os.path.join(base_input, f)
+            if os.path.isfile(fpath):
+                result["input"].append({
+                    "nome": f,
+                    "data_hora": datetime.fromtimestamp(os.path.getmtime(fpath)).strftime("%d/%m/%Y %H:%M:%S")
+                })
 
-    for root, dirs, files in os.walk(base_output):
-        if not files:
-            continue
-
-        lote_nome = os.path.basename(root)
-        if lote_nome.startswith("NSA_"):
-            nsa = lote_nome.split("_")[1]
-        else:
-            nsa = "000"
-
-        arquivos = []
-        for f in sorted(files):
-            caminho = os.path.join(root, f)
-            data_mod = datetime.fromtimestamp(os.path.getmtime(caminho)).strftime("%d/%m/%Y %H:%M:%S")
-            arquivos.append({
-                "nome": f,
-                "caminho": caminho.replace("\\", "/"),
-                "data": data_mod
-            })
-
-        resultado[f"Lote {nsa}"] = arquivos
-
-    # Retorna agrupado
-    return jsonify(resultado)
+    # 🔹 Lista OUTPUT agrupando por subpasta NSA
+    if os.path.exists(base_output):
+        for root, dirs, files in os.walk(base_output):
+            if not files:
+                continue
+            lote = os.path.basename(root)
+            if not lote.startswith("NSA_"):
+                continue
+            for f in sorted(files):
+                result["output"].append({
+                    "nome": f,
+                    "lote": lote,
+                    "data_hora": datetime.fromtimestamp(os.path.getmtime(os.path.join(root, f))).strftime("%d/%m/%Y %H:%M:%S")
+                })
+    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
