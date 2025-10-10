@@ -166,7 +166,8 @@ def process_eevc(input_path: str, output_dir: str, error_dir: str = "erro"):
         print(f"🧾 Gerado: {os.path.basename(out_path)} — Total líquido: {total_liquido}")
 
     # --- Validação total com trailer 028 (arquivo mãe) ---
-    total_trailer = to_centavos(trailer_line[134:149]) if trailer_line else 0
+    total_trailer_str = trailer_line[134:149].strip() if trailer_line else "0"
+    total_trailer = int(total_trailer_str) if total_trailer_str.isdigit() else 0
     detalhe = validar_totais(total_trailer, soma_total_processado)
     status = "OK" if total_trailer == soma_total_processado else "ERRO"
 
