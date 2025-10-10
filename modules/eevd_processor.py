@@ -53,15 +53,9 @@ def _extrair_data_nsa(header_parts: list[str], nome_arquivo: str):
 
 
 def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
-    """Processa arquivo EEVD (Vendas Débito) — versão v3.6 (fix NSA/DataRef isolados por arquivo)."""
+    """Processa arquivo EEVD (Vendas Débito) — v3.7 com separação por lote NSA."""
 
     print("🟢 Processando EEVD (Vendas Débito)")
-    limpar_diretorio(output_dir)
-    limpar_diretorio(error_dir)
-
-    grupos = defaultdict(list)
-    totais_pv = defaultdict(lambda: {"bruto": 0, "desconto": 0, "liquido": 0})
-    soma_bruto_total = 0
 
     filename = os.path.basename(input_path)
     with open(input_path, "r", encoding="utf-8", errors="replace") as f:
@@ -77,10 +71,17 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
     header_parts = [p.strip() for p in header_line.split(",")]
     trailer_parts = [p.strip() for p in trailer_line.split(",")]
 
-    # Extração segura de data_ref e nsa (fixadas neste escopo)
+    # 🔹 Extração segura de Data e NSA
     data_ref, nsa = _extrair_data_nsa(header_parts, filename)
-    data_ref_local = str(data_ref)
-    nsa_local = str(nsa)
+
+    # 🔹 Cria subpasta específica por NSA
+    lote_dir = os.path.join(output_dir, f"NSA_{nsa}")
+    os.makedirs(lote_dir, exist_ok=True)
+    print(f"📂 Criado diretório de saída: {lote_dir}")
+
+    grupos = defaultdict(list)
+    totais_pv = defaultdict(lambda: {"bruto": 0, "desconto": 0, "liquido": 0})
+    soma_bruto_total = 0
 
     tipos_validos = ("01", "011", "012", "013")
     tipos_somaveis = ("01", "012", "013")
@@ -127,9 +128,8 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
         trailer_parts_pv[6] = str(liquido).zfill(15)
         trailer_line_pv = ",".join(trailer_parts_pv)
 
-        # Usa data_ref e nsa locais fixos
-        nome_arquivo = f"{pv}_{data_ref_local}_{nsa_local}_EEVD.txt"
-        out_path = ensure_outfile(output_dir, nome_arquivo)
+        nome_arquivo = f"{pv}_{data_ref}_{nsa}_EEVD.txt"
+        out_path = ensure_outfile(lote_dir, nome_arquivo)
 
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(header_line_pv + "\n")
@@ -138,7 +138,7 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
             f.write(trailer_line_pv + "\n")
 
         gerados.append(out_path)
-        print(f"🧾 Gerado: {os.path.basename(out_path)} (Data={data_ref_local}, NSA={nsa_local})")
+        print(f"🧾 Gerado: {os.path.basename(out_path)} → {lote_dir}")
 
     total_trailer = to_centavos(trailer_parts[4] if len(trailer_parts) > 4 else "0")
     detalhe = validar_totais(total_trailer, soma_bruto_total)
@@ -148,10 +148,12 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
 
     return {
         "arquivo": filename,
-        "data_ref": data_ref_local,
-        "nsa": nsa_local,
+        "data_ref": data_ref,
+        "nsa": nsa,
+        "output_dir": lote_dir,
         "total_trailer": total_trailer,
         "total_processado": soma_bruto_total,
         "status": status,
         "detalhe": detalhe,
     }
+
