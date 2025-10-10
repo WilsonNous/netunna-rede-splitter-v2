@@ -19,27 +19,26 @@ def limpar_diretorio(dir_path: str):
 
 def _extrair_data_nsa(header_parts: list[str], nome_arquivo: str):
     """
-    Extrai a data (DDMMAA) e o NSA a partir do header EEVD ou do nome do arquivo.
-    Layout base (EEVD Rede):
-    00,020770677,07102025,06102025,...,000043,DIARIO,...
+    Extrai data (DDMMAA) e NSA do header EEVD.
+    Exemplo header:
+    00,020770677,07102025,06102025,Movimentacao diaria - Cartoes de Debito,Redecard,VENTUNO/FORTE             ,000043,DIARIO,...
     """
     data_ref = "000000"
     nsa = "000"
 
-    # 🔹 Data: campo 2 (formato DDMMAAAA → DDMMAA)
+    # Campo 2 = Data do movimento (DDMMAAAA)
     if len(header_parts) > 2:
         campo_data = header_parts[2].strip()
         if re.fullmatch(r"\d{8}", campo_data):
-            # Mantém os 2 primeiros (dia), 2 do meio (mês), 2 últimos do ano
             data_ref = f"{campo_data[:2]}{campo_data[2:4]}{campo_data[4:6]}"
 
-    # 🔹 NSA: campo 7 (ex: '000043' → '043')
+    # Campo 7 = NSA (ex: 000043 → 043)
     if len(header_parts) > 7:
         campo_nsa = header_parts[7].strip()
         if campo_nsa.isdigit():
             nsa = campo_nsa[-3:].zfill(3)
 
-    # 🔹 Fallbacks (caso header incompleto)
+    # Fallback via nome do arquivo, se algo vier errado
     if data_ref == "000000":
         m = re.search(r"(\d{6,8})", nome_arquivo)
         if m:
@@ -49,20 +48,17 @@ def _extrair_data_nsa(header_parts: list[str], nome_arquivo: str):
         if m:
             nsa = m.group(1)
 
+    print(f"🧠 Data extraída: {data_ref} | NSA extraído: {nsa} | Origem: {os.path.basename(nome_arquivo)}")
     return data_ref, nsa
 
 
 def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
-    """
-    Processa arquivo EEVD (Vendas Débito) — versão v3.4.
-    Corrige o uso incorreto de data_ref e NSA entre arquivos diferentes.
-    """
+    """Processa arquivo EEVD (Vendas Débito) — versão v3.6 (fix NSA/DataRef isolados por arquivo)."""
 
     print("🟢 Processando EEVD (Vendas Débito)")
     limpar_diretorio(output_dir)
     limpar_diretorio(error_dir)
 
-    # === Estruturas sempre reinicializadas ===
     grupos = defaultdict(list)
     totais_pv = defaultdict(lambda: {"bruto": 0, "desconto": 0, "liquido": 0})
     soma_bruto_total = 0
@@ -81,11 +77,13 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
     header_parts = [p.strip() for p in header_line.split(",")]
     trailer_parts = [p.strip() for p in trailer_line.split(",")]
 
-    # ✅ Extração isolada por arquivo
+    # Extração segura de data_ref e nsa (fixadas neste escopo)
     data_ref, nsa = _extrair_data_nsa(header_parts, filename)
+    data_ref_local = str(data_ref)
+    nsa_local = str(nsa)
 
     tipos_validos = ("01", "011", "012", "013")
-    tipos_somaveis = ("01", "012", "013")  # 011 (cancelamento) não soma
+    tipos_somaveis = ("01", "012", "013")
 
     for line in detalhes:
         parts = [p.strip() for p in line.split(",")]
@@ -102,13 +100,10 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
         liquido = to_centavos(parts[8])
 
         grupos[pv].append(parts)
-
-        # Totais individuais (sempre somados)
         totais_pv[pv]["bruto"] += bruto
         totais_pv[pv]["desconto"] += desconto
         totais_pv[pv]["liquido"] += liquido
 
-        # Totais globais (só se tipo somável)
         if tipo_registro in tipos_somaveis:
             soma_bruto_total += bruto
 
@@ -132,7 +127,8 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
         trailer_parts_pv[6] = str(liquido).zfill(15)
         trailer_line_pv = ",".join(trailer_parts_pv)
 
-        nome_arquivo = f"{pv}_{data_ref}_{nsa}_EEVD.txt"
+        # Usa data_ref e nsa locais fixos
+        nome_arquivo = f"{pv}_{data_ref_local}_{nsa_local}_EEVD.txt"
         out_path = ensure_outfile(output_dir, nome_arquivo)
 
         with open(out_path, "w", encoding="utf-8") as f:
@@ -142,7 +138,7 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
             f.write(trailer_line_pv + "\n")
 
         gerados.append(out_path)
-        print(f"🧾 Gerado: {os.path.basename(out_path)}")
+        print(f"🧾 Gerado: {os.path.basename(out_path)} (Data={data_ref_local}, NSA={nsa_local})")
 
     total_trailer = to_centavos(trailer_parts[4] if len(trailer_parts) > 4 else "0")
     detalhe = validar_totais(total_trailer, soma_bruto_total)
@@ -152,8 +148,8 @@ def process_eevd(input_path: str, output_dir: str, error_dir: str = "erro"):
 
     return {
         "arquivo": filename,
-        "data_ref": data_ref,
-        "nsa": nsa,
+        "data_ref": data_ref_local,
+        "nsa": nsa_local,
         "total_trailer": total_trailer,
         "total_processado": soma_bruto_total,
         "status": status,
