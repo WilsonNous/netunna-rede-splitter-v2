@@ -124,29 +124,38 @@ def download_all():
 # API: Scan diretórios (atualizada com data/hora)
 # ==============================
 @app.route("/api/scan", methods=["GET"])
-def scan_directories():
-    """Lista os arquivos de entrada, saída e erro com data/hora"""
-    try:
-        def listar_com_tempo(path):
-            arquivos = []
-            for fname in os.listdir(path):
-                fpath = os.path.join(path, fname)
-                if os.path.isfile(fpath):
-                    mtime = os.path.getmtime(fpath)
-                    arquivos.append({
-                        "nome": fname,
-                        "data_hora": datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M:%S"),
-                        "timestamp": mtime
-                    })
-            return sorted(arquivos, key=lambda x: x["timestamp"], reverse=True)
+def api_scan():
+    """Lista arquivos de saída, agora agrupados por lote (NSA_xxx)."""
+    base_output = "output"
+    resultado = {}
 
-        return jsonify({
-            "input": listar_com_tempo(INPUT_DIR),
-            "output": listar_com_tempo(OUTPUT_DIR),
-            "erro": listar_com_tempo(ERROR_DIR)
-        })
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+    if not os.path.exists(base_output):
+        os.makedirs(base_output)
+
+    for root, dirs, files in os.walk(base_output):
+        if not files:
+            continue
+
+        lote_nome = os.path.basename(root)
+        if lote_nome.startswith("NSA_"):
+            nsa = lote_nome.split("_")[1]
+        else:
+            nsa = "000"
+
+        arquivos = []
+        for f in sorted(files):
+            caminho = os.path.join(root, f)
+            data_mod = datetime.fromtimestamp(os.path.getmtime(caminho)).strftime("%d/%m/%Y %H:%M:%S")
+            arquivos.append({
+                "nome": f,
+                "caminho": caminho.replace("\\", "/"),
+                "data": data_mod
+            })
+
+        resultado[f"Lote {nsa}"] = arquivos
+
+    # Retorna agrupado
+    return jsonify(resultado)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
