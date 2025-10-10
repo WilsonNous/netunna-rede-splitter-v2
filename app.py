@@ -99,33 +99,32 @@ def download_file(filename):
 # API: Download ZIP (corrigido)
 # ==============================
 from flask import send_file
-import zipfile
-from io import BytesIO
+import io, zipfile, os
+from datetime import datetime
 
 @app.route("/api/download-all", methods=["GET"])
 def api_download_all():
-    """Gera ZIPs individuais por NSA (ex: NSA_041.zip, NSA_042.zip, etc)."""
+    """Gera e envia um ZIP real contendo todos os arquivos processados."""
     base_output = "output"
-    zip_dir = "zips"
-    os.makedirs(zip_dir, exist_ok=True)
+    memory_file = io.BytesIO()
 
-    created_zips = []
-    for dirpath, dirnames, filenames in os.walk(base_output):
-        if not filenames:
-            continue
-        lote = os.path.basename(dirpath)
-        if not lote.startswith("NSA_"):
-            continue
+    # Cria o ZIP na memória
+    with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(base_output):
+            for f in files:
+                file_path = os.path.join(root, f)
+                arcname = os.path.relpath(file_path, base_output)
+                zipf.write(file_path, arcname)
+    memory_file.seek(0)
 
-        zip_name = f"{lote}.zip"
-        zip_path = os.path.join(zip_dir, zip_name)
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for f in filenames:
-                full_path = os.path.join(dirpath, f)
-                zipf.write(full_path, os.path.join(lote, f))
-        created_zips.append(zip_name)
-
-    return jsonify({"zips": created_zips})
+    # Envia como download direto
+    zip_name = f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    return send_file(
+        memory_file,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=zip_name
+    )
 
 # ==============================
 # API: Scan diretórios (atualizada com data/hora)
