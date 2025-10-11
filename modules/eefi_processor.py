@@ -108,7 +108,7 @@ class ProcessResult:
 # =============================================================
 # 🚀 Função principal de processamento
 # =============================================================
-def process(file_path: str, output_root: str = "output") -> ProcessResult:
+def process_eefi(file_path: str, output_root: str = "output") -> ProcessResult:
     logger.info(f"🟢 Processando EEFI | arquivo={file_path}")
     src = Path(file_path)
     lines = src.read_text(encoding="utf-8", errors="ignore").splitlines()
