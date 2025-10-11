@@ -133,7 +133,15 @@ def process_eevc(input_path: str, output_dir: str, error_dir: str = "erro"):
                 status = _get_status(line)
                 if status in ("", "0", "000"):  # apenas válidos
                     valor = _get_liquido_valor(line)
+        
+                    # 🔹 Regras conforme tipo:
+                    if tipo in ("012", "018"):  # débitos / ajustes negativos
+                        valor = -valor
+                    elif tipo in ("008",):  # reembolsos ou reversões
+                        valor = 0  # não somar
+        
                     totais_pv[current_pv]["liquido"] += valor
+        
                 grupos[current_pv].append(line)
 
         elif tipo == "026":
