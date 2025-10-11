@@ -128,19 +128,17 @@ def process_eevc(input_path: str, output_dir: str, error_dir: str = "erro"):
             current_pv = pv
             grupos[pv].append(line)
 
-        elif tipo in ("006", "008", "010", "012", "014", "016", "018", "022", "024"):
+        elif tipo in ("006", "008", "010", "012", "014", "016", "018", "022", "024", "026", "028"):
             if current_pv:
                 status = _get_status(line)
-                if status in ("", "0", "000"):  # apenas válidos
+                if status in ("", "0", "000"):  # válidos
                     valor = _get_liquido_valor(line)
         
-                    # 🔹 Aplicação das regras oficiais:
-                    if tipo in ("012", "018"):      # Débitos (ajustes negativos)
+                    # Regras finais conforme manual EEVC
+                    if tipo in ("012", "018"):      # débitos e cancelamentos
                         valor = -valor
-                    elif tipo in ("008",):          # Ajustes / Reprocessamentos
-                        valor = 0                   # Ignora
-                    elif tipo in ("026", "028"):    # Trailers
-                        valor = 0                   # Ignora
+                    elif tipo in ("008", "026", "028"):  # ajustes e trailers
+                        valor = 0
         
                     totais_pv[current_pv]["liquido"] += valor
         
