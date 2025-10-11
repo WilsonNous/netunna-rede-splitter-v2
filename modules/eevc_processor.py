@@ -15,22 +15,19 @@ def _extract_data_nsa(header_line: str, filename: str) -> tuple[str, str]:
     nsa = "000"
 
     # Data no header 002: pos. 004–011 (DDMMAAAA) → armazeno DDMMAA
-    # Manual: Registro 002 – Header do Arquivo (Data de emissão) 
-    # (DDMMAAAA). 
     if header_line.startswith("002") and len(header_line) >= 11:
         raw = header_line[3:11]
         if raw.isdigit():
             data_ref = f"{raw[:2]}{raw[2:4]}{raw[6:8]}"
 
-    # NSA tentativa (sequência 006 dígitos + PV 009) no 002: pos. 072–077 = seq.,
-    # mas como o layout varia em VB, mantemos o teu fallback por regex e nome.
+    # NSA tentativa (sequência 006 dígitos + PV 009)
     m = re.search(r"(\d{6})(\d{9})", header_line)
     if m:
         nsa_candidate = m.group(1)
         if nsa_candidate.isdigit():
             nsa = nsa_candidate[-3:]
 
-    # Fallback via nome (final .XYZ)
+    # Fallback via nome (ex.: .041 no final)
     if nsa == "000":
         m2 = re.search(r"\.(\d{3})\D*$", filename)
         if m2:
@@ -52,25 +49,8 @@ def _rewrite_header_with_pv(header_line: str, pv: str) -> str:
 
 
 def _liquido_rv(line: str) -> int:
-    """
-    Extrai 'Valor líquido' dos RVs 006/010/016/022.
-    Manual: posições 114–128 (9(13)V99) para cada um desses registros.
-    """
+    """Extrai 'Valor líquido' dos RVs 006/010/016/022 (posições 114–128)."""
     return to_centavos(line[114:129]) if len(line) >= 129 else 0
-
-
-def _valor_liquido_cv(line: str) -> int:
-    """
-    Extrai 'Valor líquido' dos CVs que possuem esse campo:
-    - 012/018: pos. 206–220 = Valor líquido do CV/NSU.
-    (Obs.: 024 não tem 'valor líquido', é 'Valor do CV/NSU' em 038–052.)
-    """
-    return to_centavos(line[206:221]) if len(line) >= 221 else 0
-
-
-def _status_cv(line: str) -> str:
-    """Status do CV/NSU nas posições 84–86 para 008/012/018/024."""
-    return line[84:87].strip() if len(line) >= 87 else ""
 
 
 def _build_trailer_026(pv: str, total_liquido_cent: int) -> str:
@@ -95,37 +75,24 @@ def _build_trailer_026(pv: str, total_liquido_cent: int) -> str:
     parts = [
         "026",
         str(pv).zfill(9),
-        "0".zfill(15),  # bruto
-        "0".zfill(6),   # qtd rejeitados
-        "0".zfill(15),  # rejeitado
-        "0".zfill(15),  # rotativo
-        "0".zfill(15),  # parcelado s/ juros
-        "0".zfill(15),  # IATA
-        "0".zfill(15),  # dólar
-        "0".zfill(15),  # desconto
-        num15(total_liquido_cent),  # líquido
-        "0".zfill(15),  # gorjeta
-        "0".zfill(15),  # taxa embarque
-        "0".zfill(6),   # qtd acatados
+        "0".zfill(15),
+        "0".zfill(6),
+        "0".zfill(15),
+        "0".zfill(15),
+        "0".zfill(15),
+        "0".zfill(15),
+        "0".zfill(15),
+        "0".zfill(15),
+        num15(total_liquido_cent),
+        "0".zfill(15),
+        "0".zfill(15),
+        "0".zfill(6),
     ]
-    # Concatena respeitando larguras (sem separador)
-    s = (
-        parts[0] +                      # 3
-        parts[1] +                      # +9
-        parts[2] +                      # +15
-        parts[3] +                      # +6
-        parts[4] +                      # +15
-        parts[5] +                      # +15
-        parts[6] +                      # +15
-        parts[7] +                      # +15
-        parts[8] +                      # +15
-        parts[9] +                      # +15
-        parts[10] +                     # +15
-        parts[11] +                     # +15
-        parts[12] +                     # +15
-        parts[13]                       # +6
+    return (
+        parts[0] + parts[1] + parts[2] + parts[3] + parts[4] + parts[5] +
+        parts[6] + parts[7] + parts[8] + parts[9] + parts[10] +
+        parts[11] + parts[12] + parts[13]
     )
-    return s
 
 
 # ======================================================
@@ -134,17 +101,16 @@ def _build_trailer_026(pv: str, total_liquido_cent: int) -> str:
 
 def process_eevc(input_path: str, output_dir: str, error_dir: str = "erro"):
     """
-    Processa arquivo EEVC (Vendas Crédito) v4.4.
+    Processa arquivo EEVC (Vendas Crédito) v4.5 (NSA-ready)
     - Divide por PV (registro 004…026)
-    - Soma SOMENTE RVs (006/010/016/022) para validar com 028 (Valor total líquido)
-    - Ignora 008/014/024 na validação do 028 para evitar dupla contagem
-    - Recalcula trailer 026 por PV (posicionando 'valor total líquido' em 124–138)
-    - Valida com 028 (arquivo mãe, pos. 134–148)
+    - Soma SOMENTE RVs (006/010/016/022) para validar com 028
+    - Ignora 008/014/024
+    - Recalcula trailer 026 por PV
+    - Grava filhos dentro de output/NSA_<nsa>/
     """
     print("🟢 Processando EEVC (Vendas Crédito)")
     filename = os.path.basename(input_path)
 
-    # REDE: arquivos VB com Latin-1 é o mais resiliente
     with open(input_path, "r", encoding="latin-1", errors="replace") as f:
         lines = [l.rstrip("\n") for l in f if l.strip()]
 
@@ -153,7 +119,7 @@ def process_eevc(input_path: str, output_dir: str, error_dir: str = "erro"):
 
     header_line = None
     trailer_line = None
-    grupos = defaultdict(list)            # PV -> linhas do bloco (sem 026 original)
+    grupos = defaultdict(list)
     totais_pv = defaultdict(lambda: {"liquido_rv": 0})
     current_pv = None
 
@@ -163,72 +129,66 @@ def process_eevc(input_path: str, output_dir: str, error_dir: str = "erro"):
         if tipo == "002":
             header_line = line
 
-        elif tipo == "004":  # Início de bloco PV
+        elif tipo == "004":
             pv = line[3:12].strip()
             current_pv = pv
             grupos[pv].append(line)
 
         elif tipo in ("006", "010", "016", "022"):
-            # RVs: somar líquido (114–128)
             if current_pv:
                 tot = _liquido_rv(line)
                 totais_pv[current_pv]["liquido_rv"] += tot
                 grupos[current_pv].append(line)
 
         elif tipo in ("008", "012", "018", "014", "024"):
-            # CVs/parcelas não entram na soma do 028.
-            # Mantemos as linhas no bloco do PV para o filho, se dentro de PV.
             if current_pv:
                 grupos[current_pv].append(line)
 
         elif tipo == "026":
-            # Fecha o bloco do PV (não guardar o 026 original; será recalculado)
             current_pv = None
 
         elif tipo == "028":
-            # Trailer do arquivo (global, fora de PV)
             trailer_line = line
 
         else:
-            # Qualquer outro registro dentro do PV vai para o filho
             if current_pv:
                 grupos[current_pv].append(line)
 
     if not header_line or not trailer_line:
         raise ValueError("Header (002) ou Trailer (028) ausentes no arquivo EEVC.")
 
-    # Extração data e NSA para nome do filho
     data_ref, nsa = _extract_data_nsa(header_line, filename)
 
     # --- Geração dos filhos ---
     gerados = []
     soma_total_processado = 0
 
+    # 🔹 Cria subdiretório NSA_<nsa> (padrão EEVD)
+    subdir = os.path.join(output_dir, f"NSA_{nsa}")
+    os.makedirs(subdir, exist_ok=True)
+
     for pv, blocos in grupos.items():
-        total_liquido_rv = totais_pv[pv]["liquido_rv"] // 10
+        total_liquido_rv = totais_pv[pv]["liquido_rv"] // 10  # ajuste de escala EEVC
         soma_total_processado += total_liquido_rv
 
         header_pv = _rewrite_header_with_pv(header_line, pv)
-
-        # 026 recalculado (preenche apenas Total Líquido; demais campos zerados)
         trailer_026 = _build_trailer_026(pv, total_liquido_rv)
 
         nome_arquivo = f"{pv}_{data_ref}_{nsa}_EEVC.txt"
-        out_path = ensure_outfile(output_dir, nome_arquivo)
+        out_path = os.path.join(subdir, nome_arquivo)
 
         with open(out_path, "w", encoding="latin-1", errors="ignore") as f:
             f.write(header_pv + "\n")
             for l in blocos:
-                if not l.startswith("026"):  # substitui trailer 026 original por recalculado
+                if not l.startswith("026"):
                     f.write(l + "\n")
             f.write(trailer_026 + "\n")
-            f.write(trailer_line + "\n")  # mantém 028 ao final do filho para referência
+            f.write(trailer_line + "\n")
 
         gerados.append(out_path)
-        print(f"🧾 Gerado: {os.path.basename(out_path)} — Total líquido (RVs): {total_liquido_rv}")
+        print(f"🧾 Gerado: {os.path.basename(out_path)} → {subdir} — Total líquido (RVs): {total_liquido_rv}")
 
-    # --- Validação total com trailer 028 (arquivo mãe) ---
-    # Manual 028: Valor total líquido pos. 134–148
+    # --- Validação total com trailer 028 ---
     total_trailer_str = trailer_line[133:148].strip() if len(trailer_line) >= 148 else "0"
     total_trailer = int(total_trailer_str) if total_trailer_str.isdigit() else 0
     detalhe = validar_totais(total_trailer, soma_total_processado)
