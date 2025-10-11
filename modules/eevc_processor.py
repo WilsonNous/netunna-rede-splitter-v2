@@ -205,7 +205,7 @@ def process_eevc(input_path: str, output_dir: str, error_dir: str = "erro"):
     soma_total_processado = 0
 
     for pv, blocos in grupos.items():
-        total_liquido_rv = totais_pv[pv]["liquido_rv"]
+        total_liquido_rv = totais_pv[pv]["liquido_rv"] // 10
         soma_total_processado += total_liquido_rv
 
         header_pv = _rewrite_header_with_pv(header_line, pv)
