@@ -68,11 +68,25 @@ def _get_liquido_valor(line: str) -> int:
 
 
 def _get_status(line: str) -> str:
-    """Retorna o status do CV/NSU (posições 84–86 conforme manual)."""
+    """Extrai o campo de status conforme o tipo de registro."""
+    tipo = line[:3]
     try:
-        return line[84:87].strip()
+        if tipo in ("006", "010", "016", "022"):
+            # Status RV: posições 117–119
+            return line[117:120].strip()
+        elif tipo in ("008", "012", "018"):
+            # Status CV/NSU: posições 84–86
+            return line[84:87].strip()
+        elif tipo == "014":
+            # Parcelas — podem não ter status (assume válido)
+            return "0"
+        elif tipo == "024":
+            # Transações em dólar — idem
+            return "0"
+        else:
+            return "999"  # não somável
     except Exception:
-        return "000"
+        return "999"
 
 
 # ======================================================
