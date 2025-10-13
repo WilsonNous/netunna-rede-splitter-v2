@@ -4,20 +4,26 @@
   <meta charset="UTF-8" />
   <title>Netunna REDE Splitter v3</title>
   <style>
-    /* ====== BASE ====== */
-    body { font-family: "Inter","Roboto",Arial,sans-serif; background:#f6f7fb; color:#333; margin:0; }
+    body {
+      font-family: "Inter","Roboto",Arial,sans-serif;
+      background:#f6f7fb; color:#333; margin:0;
+    }
+
     header {
       background:#ff6d00; color:#fff; padding:18px 28px;
       box-shadow:0 2px 6px rgba(0,0,0,.15);
       display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
     }
+
     header h1 { margin:0; font-size:24px; letter-spacing:.3px; }
     header small { display:block; font-size:14px; opacity:.9; margin-top:2px; }
+
     .status-indicador {
       display:flex; align-items:center; gap:8px;
-      background:rgba(255,255,255,.15); padding:6px 12px; border-radius:20px; font-size:14px; font-weight:500;
-      white-space:nowrap;
+      background:rgba(255,255,255,.15); padding:6px 12px;
+      border-radius:20px; font-size:14px; font-weight:500; white-space:nowrap;
     }
+
     .status-indicador span { width:10px; height:10px; border-radius:50%; display:inline-block; }
     .ativo span { background:#00d24b; }
     .parado span { background:#ff4444; }
@@ -27,38 +33,37 @@
       display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
       gap:20px; padding:25px;
     }
+
     section {
       background:#fff; border-radius:10px; padding:20px;
       box-shadow:0 3px 6px rgba(0,0,0,.08);
       display:flex; flex-direction:column; transition:all .25s ease;
-      min-width:0; /* importante p/ truncar dentro do grid */
+      min-width:0;
     }
-    section:hover { transform:translateY(-2px); box-shadow:0 4px 10px rgba(0,0,0,.12); }
 
     h2 {
       color:#ff6d00; font-size:18px; margin:0 0 10px;
       border-bottom:2px solid #ff6d00; padding-bottom:6px;
     }
+
     button {
       background:#ff6d00; color:#fff; border:none; border-radius:6px;
-      padding:7px 12px; font-size:14px; cursor:pointer; margin-right:6px; transition:background .2s ease;
+      padding:7px 12px; font-size:14px; cursor:pointer; margin-right:6px;
+      transition:background .2s ease;
     }
     button:hover { background:#e55f00; }
 
-    /* ====== TABELAS ====== */
-    table { width:100%; border-collapse:collapse; margin-top:10px; border-radius:6px; overflow:hidden; table-layout:fixed; }
-    th, td { padding:8px; border:1px solid #e0e0e0; text-align:left; font-size:14px; }
+    table {
+      width:100%; border-collapse:collapse; margin:0; border-radius:6px; overflow:hidden;
+    }
+
+    th, td {
+      padding:8px 10px; border:1px solid #e0e0e0;
+      text-align:left; font-size:14px;
+    }
+
     th { background:#ff9100; color:#fff; }
     tr:nth-child(even) { background:#fafafa; }
-
-    /* colunas controladas */
-    .col-arquivo { width:70%; }
-    .col-dt { width:30%; }
-    .ellipsis { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-
-    /* wrap/word-break para logs longos */
-    .wrap { white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
 
     .ok { color:green; font-weight:bold; }
     .erro { color:#c00; font-weight:bold; }
@@ -68,20 +73,37 @@
       background:#fff; border-top:1px solid #eee;
     }
 
-    /* ====== AGRUPAMENTO NSA ====== */
-    .lote-grupo { background:#fdfdfd; border-radius:8px; margin-top:15px; box-shadow:0 1px 4px rgba(0,0,0,.08); overflow:hidden; }
+    /* === Rolagem e largura controlada === */
+    .scroll-box {
+      border:1px solid #eee;
+      border-radius:6px;
+      overflow:auto;
+      max-height:260px;
+      margin-top:10px;
+    }
+
+    .scroll-box::-webkit-scrollbar { height:8px; width:8px; }
+    .scroll-box::-webkit-scrollbar-thumb { background:#ccc; border-radius:4px; }
+    .scroll-box:hover::-webkit-scrollbar-thumb { background:#999; }
+
+    .mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
+
+    /* === Lotes === */
+    .lote-grupo {
+      background:#fdfdfd; border-radius:8px; margin-top:15px;
+      box-shadow:0 1px 4px rgba(0,0,0,.08); overflow:hidden;
+    }
+
     .lote-header {
-      background:#fff5ef; padding:10px 15px; display:flex; justify-content:space-between; align-items:center;
+      background:#fff5ef; padding:10px 15px;
+      display:flex; justify-content:space-between; align-items:center;
       cursor:pointer; border-bottom:1px solid #ffe0c2;
     }
+
     .lote-header h3 { color:#ff6d00; font-size:15px; margin:0; }
     .toggle-btn { background:none; border:none; font-size:22px; color:#ff6d00; cursor:pointer; font-weight:bold; }
-    .lote-content { display:none; animation:fadeIn .25s ease-in; padding:0 10px 10px; }
 
-    /* ====== SCROLL INTERNO: evita “estourar” o grid ====== */
-    .table-wrap { max-height:280px; overflow:auto; border-radius:6px; border:1px solid #eee; }
-    .table-wrap table { margin:0; border:0; }
-    .table-wrap th, .table-wrap td { border-left:0; border-right:0; }
+    .lote-content { display:none; animation:fadeIn .25s ease-in; padding:0 10px 10px; }
 
     .resumo-output { font-weight:bold; color:#444; margin:10px 0 15px; }
 
@@ -106,14 +128,10 @@
       <div>
         <button onclick="loadFiles()">🔄 Atualizar Lista</button>
       </div>
-      <!-- wrapper com scroll para não “empurrar” o grid -->
-      <div class="table-wrap">
+      <div class="scroll-box">
         <table id="inputTable">
           <thead>
-            <tr>
-              <th class="col-arquivo">Arquivo</th>
-              <th class="col-dt">Data/Hora de Envio</th>
-            </tr>
+            <tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -134,7 +152,7 @@
     <!-- LOGS -->
     <section>
       <h2>🧾 Histórico de Processamentos</h2>
-      <div class="table-wrap">
+      <div class="scroll-box">
         <table id="logTable">
           <thead>
             <tr>
@@ -158,109 +176,97 @@
   </footer>
 
   <script>
-    /* ====== UTIL ====== */
-    const HEARTBEAT_MS = 3 * 60 * 1000; // 3 minutos: janela de batimento do agente
+    const HEARTBEAT_MS = 3 * 60 * 1000;
 
     function parseBRDateTime(s) {
-      // espera "DD/MM/AAAA HH:MM:SS"
-      if (!s || typeof s !== "string") return null;
+      if (!s) return null;
       const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
       if (!m) return null;
       const [_, dd, mm, yyyy, HH, MM, SS] = m;
-      return new Date(Number(yyyy), Number(mm)-1, Number(dd), Number(HH), Number(MM), Number(SS));
+      return new Date(yyyy, mm - 1, dd, HH, MM, SS);
     }
 
     function formatRelativo(msDiff) {
-      if (msDiff == null) return "—";
-      const s = Math.max(0, Math.floor(msDiff/1000));
-      const m = Math.floor(s/60), r = s % 60;
-      if (m > 0) return `${m}m ${r}s`;
-      return `${r}s`;
+      if (!msDiff) return "—";
+      const s = Math.floor(msDiff / 1000);
+      if (s < 60) return `${s}s`;
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${m}m ${r}s`;
     }
 
     function inferStatusFromScan(scan) {
-      // Pega o mais recente data_hora de scan.input
       let lastTs = null;
-      if (scan && Array.isArray(scan.input) && scan.input.length > 0) {
-        for (const item of scan.input) {
+      if (scan?.input?.length) {
+        scan.input.forEach(item => {
           const dt = parseBRDateTime(item.data_hora);
           if (dt && (!lastTs || dt > lastTs)) lastTs = dt;
-        }
+        });
       }
       const now = new Date();
-      const delta = lastTs ? (now - lastTs) : null;
+      const delta = lastTs ? now - lastTs : null;
       const ativo = delta != null && delta <= HEARTBEAT_MS;
-      return { ativo, lastTs, delta };
+      return { ativo, delta };
     }
 
-    function pintarStatus({ativo, fallback=false, delta=null}) {
+    function pintarStatus({ ativo, fallback = false, delta = null }) {
       const barra = document.getElementById("statusBar");
       if (ativo) {
         barra.className = "status-indicador ativo";
         const extra = fallback ? " (agente)" : "";
-        const info = delta!=null ? ` • Última atividade: há ${formatRelativo(delta)}` : "";
+        const info = delta ? ` • Última atividade: há ${formatRelativo(delta)}` : "";
         barra.innerHTML = `<span></span> 🟢 Ativo${extra}${info}`;
       } else {
         barra.className = "status-indicador parado";
-        const info = delta!=null ? ` • Última atividade: há ${formatRelativo(delta)}` : "";
+        const info = delta ? ` • Última atividade: há ${formatRelativo(delta)}` : "";
         barra.innerHTML = `<span></span> 🔴 Parado${info}`;
       }
     }
 
     async function atualizarStatusComFallback(scan) {
-      // 1) tenta /api/status
       const barra = document.getElementById("statusBar");
       try {
         const res = await fetch("/api/status");
         const data = await res.json();
-        const ok = (data.status && String(data.status).toLowerCase()==="ativo") || data.online === true || data.ok === true;
-        if (ok) { pintarStatus({ativo:true, fallback:false, delta:null}); return; }
-        // 2) fallback por atividade do agente (scan.input)
-        const {ativo, delta} = inferStatusFromScan(scan || {});
-        pintarStatus({ativo, fallback:true, delta});
-      } catch (e) {
-        // 3) erro geral -> tenta inferência
-        const {ativo, delta} = inferStatusFromScan(scan || {});
-        if (scan) pintarStatus({ativo, fallback:true, delta});
-        else {
-          barra.className = "status-indicador desconhecido";
-          barra.innerHTML = `<span></span> ⚠️ Sem resposta`;
+        const ok = data.status?.toLowerCase() === "ativo" || data.online || data.ok;
+        if (ok) {
+          pintarStatus({ ativo: true, fallback: false });
+          return;
         }
+        const { ativo, delta } = inferStatusFromScan(scan || {});
+        pintarStatus({ ativo, fallback: true, delta });
+      } catch {
+        const { ativo, delta } = inferStatusFromScan(scan || {});
+        pintarStatus({ ativo, fallback: true, delta });
       }
     }
 
-    /* ====== APP ====== */
     async function loadFiles() {
       try {
-        const resScan = await fetch('/api/scan');
+        const resScan = await fetch("/api/scan");
         const scan = await resScan.json();
 
-        // status via /api/status + fallback pelo agente
         await atualizarStatusComFallback(scan);
 
         // === INPUT ===
-        const tbodyIn = document.querySelector('#inputTable tbody');
-        tbodyIn.innerHTML = '';
-        if (!scan.input || scan.input.length === 0) {
+        const tbodyIn = document.querySelector("#inputTable tbody");
+        tbodyIn.innerHTML = "";
+        if (!scan.input?.length) {
           tbodyIn.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;
         } else {
           scan.input.forEach(item => {
-            const tr = document.createElement('tr');
-            // célula com ellipsis + tooltip
-            tr.innerHTML = `
-              <td class="ellipsis mono" title="${item.nome}">${item.nome}</td>
-              <td class="ellipsis" title="${item.data_hora}">${item.data_hora}</td>
-            `;
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td class="mono">${item.nome}</td><td>${item.data_hora}</td>`;
             tbodyIn.appendChild(tr);
           });
         }
 
-        // === OUTPUT AGRUPADO ===
+        // === OUTPUT ===
         const outputContainer = document.getElementById("outputContainer");
-        outputContainer.innerHTML = '';
+        outputContainer.innerHTML = "";
         const summary = document.getElementById("outputSummary");
 
-        if (!scan.output || scan.output.length === 0) {
+        if (!scan.output?.length) {
           outputContainer.innerHTML = `<p style="text-align:center;">Nenhum arquivo gerado.</p>`;
           summary.textContent = "📊 Nenhum lote processado ainda.";
         } else {
@@ -271,67 +277,68 @@
             grupos[lote].push(item);
           });
 
-          const totalLotes = Object.keys(grupos).length;
-          const totalArquivos = scan.output.length;
-          summary.textContent = `📊 ${totalLotes} lotes processados — total de ${totalArquivos} arquivos gerados.`;
+          summary.textContent = `📊 ${Object.keys(grupos).length} lotes processados — total de ${scan.output.length} arquivos gerados.`;
 
-          Object.keys(grupos).sort().forEach(lote => {
-            const grupoDiv = document.createElement("div");
-            grupoDiv.classList.add("lote-grupo");
+          Object.keys(grupos)
+            .sort()
+            .forEach(lote => {
+              const grupoDiv = document.createElement("div");
+              grupoDiv.classList.add("lote-grupo");
 
-            const header = document.createElement("div");
-            header.classList.add("lote-header");
-            header.innerHTML = `
-              <h3 class="ellipsis mono" title="${lote}">📦 ${lote}</h3>
-              <button class="toggle-btn" onclick="toggleLote(this)">+</button>
-            `;
+              const header = document.createElement("div");
+              header.classList.add("lote-header");
+              header.innerHTML = `<h3>📦 ${lote}</h3><button class="toggle-btn" onclick="toggleLote(this)">+</button>`;
 
-            const content = document.createElement("div");
-            content.classList.add("lote-content");
-            content.innerHTML = `
-              <table>
-                <thead>
-                  <tr><th class="col-arquivo">Arquivo</th><th class="col-dt">Data/Hora</th><th>Ação</th></tr>
-                </thead>
-                <tbody>
-                  ${grupos[lote].map(a => `
-                    <tr>
-                      <td class="ellipsis mono" title="${a.nome}">${a.nome}</td>
-                      <td class="ellipsis" title="${a.data_hora}">${a.data_hora}</td>
-                      <td><a href="/api/download/${encodeURIComponent(a.nome)}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
-                    </tr>`).join('')}
-                </tbody>
-              </table>
-            `;
-
-            grupoDiv.appendChild(header);
-            grupoDiv.appendChild(content);
-            outputContainer.appendChild(grupoDiv);
-          });
+              const content = document.createElement("div");
+              content.classList.add("lote-content");
+              content.innerHTML = `
+                <table>
+                  <thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead>
+                  <tbody>
+                    ${grupos[lote]
+                      .map(
+                        a => `
+                        <tr>
+                          <td class="mono">${a.nome}</td>
+                          <td>${a.data_hora}</td>
+                          <td><a href="/api/download/${encodeURIComponent(
+                            a.nome
+                          )}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
+                        </tr>`
+                      )
+                      .join("")}
+                  </tbody>
+                </table>`;
+              grupoDiv.appendChild(header);
+              grupoDiv.appendChild(content);
+              outputContainer.appendChild(grupoDiv);
+            });
         }
 
-        // === LOGS === (wrap longo p/ não quebrar o grid)
-        const tbody = document.querySelector('#logTable tbody');
-        tbody.innerHTML = '';
-        const logs = scan.logs || []; // se preferir usar de /api/status, adapte aqui
-        if (!logs || logs.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
+        // === LOGS ===
+        const tbodyLog = document.querySelector("#logTable tbody");
+        tbodyLog.innerHTML = "";
+        const logs = scan.logs || [];
+        if (!logs.length) {
+          tbodyLog.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
         } else {
-          logs.slice().reverse().forEach(l => {
-            const tr = document.createElement('tr');
-            const statusClass = l.status === 'OK' ? 'ok' : 'erro';
-            tr.innerHTML = `
-              <td class="ellipsis" title="${l.data_hora}">${l.data_hora}</td>
-              <td class="ellipsis mono" title="${l.arquivo}">${l.arquivo}</td>
-              <td>${l.tipo}</td>
-              <td class="wrap">${l.total_trailer}</td>
-              <td class="wrap">${l.total_processado}</td>
-              <td class="${statusClass}">${l.status}</td>
-              <td class="wrap">${l.detalhe}</td>`;
-            tbody.appendChild(tr);
-          });
+          logs
+            .slice()
+            .reverse()
+            .forEach(l => {
+              const statusClass = l.status === "OK" ? "ok" : "erro";
+              const tr = document.createElement("tr");
+              tr.innerHTML = `
+                <td>${l.data_hora}</td>
+                <td class="mono">${l.arquivo}</td>
+                <td>${l.tipo}</td>
+                <td>${l.total_trailer}</td>
+                <td>${l.total_processado}</td>
+                <td class="${statusClass}">${l.status}</td>
+                <td>${l.detalhe}</td>`;
+              tbodyLog.appendChild(tr);
+            });
         }
-
       } catch (err) {
         console.error("Erro ao carregar dados:", err);
         const barra = document.getElementById("statusBar");
@@ -342,17 +349,16 @@
 
     function toggleLote(btn) {
       const content = btn.parentElement.nextElementSibling;
-      const isVisible = content.style.display === "block";
-      content.style.display = isVisible ? "none" : "block";
-      btn.textContent = isVisible ? "+" : "−";
+      const visible = content.style.display === "block";
+      content.style.display = visible ? "none" : "block";
+      btn.textContent = visible ? "+" : "−";
     }
 
     async function downloadAll() {
       try {
-        const res = await fetch('/api/download-all');
+        const res = await fetch("/api/download-all");
         const data = await res.json();
-
-        if (data.zips && data.zips.length > 0) {
+        if (data.zips?.length) {
           alert(`Foram gerados ${data.zips.length} arquivos ZIP por NSA.`);
           data.zips.forEach(zip => {
             const a = document.createElement("a");
@@ -360,12 +366,9 @@
             a.download = zip;
             a.click();
           });
-        } else {
-          alert("Nenhum ZIP foi gerado.");
-        }
-      } catch (err) {
+        } else alert("Nenhum ZIP foi gerado.");
+      } catch {
         alert("Erro ao gerar os ZIPs.");
-        console.error(err);
       }
     }
 
