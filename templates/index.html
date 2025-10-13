@@ -118,40 +118,19 @@
       font-size:11px; color:#aaa; opacity:.6; font-style:italic;
     }
 
-    /* === Ednna === */
-    #ednna-btn {
-      position: fixed; bottom: 25px; right: 25px;
-      background: #ff6d00; border: none; border-radius: 50%;
-      width: 60px; height: 60px; cursor: pointer;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-      transition: transform 0.2s ease;
-      z-index: 9999; overflow: hidden;
+    /* Ednna iframe */
+    #ednna-frame {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      width: 360px;
+      height: 520px;
+      border: none;
+      background: transparent;
+      z-index: 9999;
+      pointer-events: none;
     }
-    #ednna-btn:hover { transform: scale(1.1); }
-    #ednna-btn img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-
-    #ednna-chat {
-      position: fixed; bottom: 100px; right: 25px;
-      width: 320px; max-height: 430px;
-      background: #fff; border-radius: 14px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-      display: none; flex-direction: column;
-      overflow: hidden; z-index: 9998;
-      animation: fadeInChat 0.3s ease;
-    }
-    @keyframes fadeInChat { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-    #ednna-header { background:#ff6d00; color:#fff; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; }
-    #ednna-header h4 { margin:0; font-size:15px; display:flex; align-items:center; gap:8px; }
-    #ednna-header img { width:22px; height:22px; border-radius:50%; object-fit:cover; border:1px solid rgba(255,255,255,0.6); }
-    #ednna-close { background:none; border:none; color:#fff; font-size:18px; cursor:pointer; font-weight:bold; }
-    #ednna-messages { flex:1; padding:10px; overflow-y:auto; font-size:14px; display:flex; flex-direction:column; }
-    .msg { margin-bottom:8px; padding:8px 10px; border-radius:8px; max-width:85%; }
-    .msg.ednna { background:#fff5ef; color:#444; align-self:flex-start; }
-    .msg.user { background:#ff9100; color:#fff; align-self:flex-end; }
-    #ednna-input { display:flex; border-top:1px solid #eee; }
-    #ednna-input input { flex:1; padding:8px; border:none; font-size:14px; outline:none; }
-    #ednna-input button { background:#ff6d00; color:#fff; border:none; padding:8px 12px; cursor:pointer; transition:background .2s ease; }
-    #ednna-input button:hover { background:#e55f00; }
+    #ednna-frame:hover { pointer-events: auto; }
   </style>
 </head>
 
@@ -199,106 +178,9 @@
     <span class="versao">Build Stable</span>
   </footer>
 
-  <!-- === Ednna Assistente === -->
-  <button id="ednna-btn" title="Falar com Ednna 🤖"><img src="static/ednna_avatar.png" alt="Ednna" /></button>
-  <div id="ednna-chat">
-    <div id="ednna-header"><h4><img src="static/ednna_avatar.png" alt="Ednna"/> Ednna</h4><button id="ednna-close">×</button></div>
-    <div id="ednna-messages"><div class="msg ednna">Olá 👋 Sou a Ednna, assistente do Splitter!<br>Posso te ajudar com dúvidas sobre status, logs ou arquivos processados.</div></div>
-    <div id="ednna-input"><input type="text" id="ednna-text" placeholder="Digite sua pergunta..."/><button onclick="sendEdnnaMsg()">➤</button></div>
-  </div>
+  <!-- Ednna via iframe -->
+  <iframe id="ednna-frame" src="/static/ednna.html" title="Assistente Ednna"></iframe>
 
-  <script>
-    const HEARTBEAT_MS = 3 * 60 * 1000;
-
-    function atualizarRelogio(){
-      const agora=new Date();
-      const op={timeZone:'America/Sao_Paulo',hour12:false};
-      document.getElementById("currentTime").textContent=agora.toLocaleString('pt-BR',op);
-    }
-    atualizarRelogio(); setInterval(atualizarRelogio,60000);
-
-    function parseBRDateTime(s){if(!s)return null;const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);if(!m)return null;const[_,dd,mm,yyyy,HH,MM,SS]=m;return new Date(yyyy,mm-1,dd,HH,MM,SS);}
-    function formatRelativo(ms){if(!ms)return"—";const s=Math.floor(ms/1000);if(s<60)return`${s}s`;const m=Math.floor(s/60);const r=s%60;return`${m}m ${r}s`;}
-    function inferStatusFromScan(scan){let lastTs=null;if(scan?.input?.length){scan.input.forEach(i=>{const d=parseBRDateTime(i.data_hora);if(d&&(!lastTs||d>lastTs))lastTs=d;});}const now=new Date();const delta=lastTs?now-lastTs:null;return{ativo:delta!=null&&delta<=HEARTBEAT_MS,delta};}
-    function pintarStatus({ativo,delta=null}){const b=document.getElementById("statusBar");if(ativo){b.className="status-indicador ativo";b.innerHTML=`<span></span> 🟢 Ativo • Última atividade: há ${formatRelativo(delta)}`;}else{b.className="status-indicador parado";b.innerHTML=`<span></span> 🔴 Parado • Última atividade: há ${formatRelativo(delta)}`;}}
-
-    async function atualizarStatusComFallback(scan){try{const r=await fetch("/api/status");const d=await r.json();const ok=d.status?.toLowerCase()==="ativo"||d.online||d.ok;if(ok){pintarStatus({ativo:true});return d.logs||[];}else{const{ativo,delta}=inferStatusFromScan(scan||{});pintarStatus({ativo,delta});return d.logs||[];}}catch{const{ativo,delta}=inferStatusFromScan(scan||{});pintarStatus({ativo,delta});return[];}}
-
-    async function loadFiles(){
-      try{
-        const rs=await fetch("/api/scan");const scan=await rs.json();
-        const logsStatus=await atualizarStatusComFallback(scan);
-
-        const tbodyIn=document.querySelector("#inputTable tbody");
-        tbodyIn.innerHTML="";
-        if(!scan.input?.length){tbodyIn.innerHTML=`<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;}
-        else{scan.input.forEach(i=>{const tr=document.createElement("tr");tr.innerHTML=`<td class='mono'>${i.nome}</td><td>${i.data_hora}</td>`;tbodyIn.appendChild(tr);});}
-        document.getElementById("inputCount").textContent=`📊 Exibindo ${scan.input?.length||0} registros.`;
-
-        const oc=document.getElementById("outputContainer");oc.innerHTML="";
-        const s=document.getElementById("outputSummary");
-        if(!scan.output?.length){oc.innerHTML=`<p style='text-align:center;'>Nenhum arquivo gerado.</p>`;s.textContent="📊 Nenhum lote processado ainda.";}
-        else{
-          const g={}; scan.output.forEach(i=>{const l=i.lote||"NSA_000";if(!g[l])g[l]=[];g[l].push(i);});
-          s.textContent=`📊 ${Object.keys(g).length} lotes processados — total de ${scan.output.length} arquivos.`;
-          Object.keys(g).sort().forEach(l=>{
-            const d=document.createElement("div");d.classList.add("lote-grupo");
-            const h=document.createElement("div");h.classList.add("lote-header");
-            h.innerHTML=`<h3>📦 ${l} <span class='badge'>${g[l].length}</span></h3><button class='toggle-btn' onclick='toggleLote(this)'>+</button>`;
-            const c=document.createElement("div");c.classList.add("lote-content");
-            c.innerHTML=`<table><thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead><tbody>${g[l].map(a=>`<tr><td class='mono'>${a.nome}</td><td>${a.data_hora}</td><td><a href='/api/download/${encodeURIComponent(a.nome)}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td></tr>`).join("")}</tbody></table>`;
-            d.appendChild(h);d.appendChild(c);oc.appendChild(d);
-          });
-        }
-
-        const tl=document.querySelector("#logTable tbody");tl.innerHTML="";
-        const logs=scan.logs?.length?scan.logs:logsStatus;
-        if(!logs?.length){tl.innerHTML=`<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;}
-        else{
-          logs.slice().reverse().forEach(l=>{
-            const st=l.status==="OK"?"ok":"erro";
-            const tr=document.createElement("tr");
-            tr.innerHTML=`<td>${l.data_hora}</td><td class='mono'>${l.arquivo}</td><td>${l.tipo}</td><td>${l.total_trailer}</td><td>${l.total_processado}</td><td class='${st}'>${l.status}</td><td>${l.detalhe}</td>`;
-            tl.appendChild(tr);
-          });
-        }
-        document.getElementById("logCount").textContent=`📊 Exibindo ${logs?.length||0} registros.`;
-      }catch(err){console.error("Erro:",err);document.getElementById("statusBar").innerHTML=`<span></span> ⚠️ Erro ao consultar API`;}
-    }
-
-    function toggleLote(b){const g=b.closest(".lote-grupo");const c=g.querySelector(".lote-content");const o=c.classList.contains("open");document.querySelectorAll(".lote-content.open").forEach(x=>{x.classList.remove("open");x.parentElement.classList.remove("open");x.previousElementSibling.querySelector("button").textContent="+";});if(!o){c.classList.add("open");g.classList.add("open");b.textContent="−";}}
-
-    async function downloadAll(){
-      try{const r=await fetch("/api/download-all");const d=await r.json();
-        if(d.zips?.length){
-          alert(`Foram gerados ${d.zips.length} arquivos ZIP.`);
-          d.zips.forEach(z=>{const a=document.createElement("a");a.href=`/zips/${z}`;a.download=z;a.click();});
-        } else alert("Nenhum ZIP foi gerado.");
-      }catch{alert("Erro ao gerar os ZIPs.");}
-    }
-
-    // Ednna
-    const ednnaBtn=document.getElementById('ednna-btn');
-    const ednnaChat=document.getElementById('ednna-chat');
-    const ednnaClose=document.getElementById('ednna-close');
-    const ednnaMsgs=document.getElementById('ednna-messages');
-    ednnaBtn.onclick=()=>{ednnaChat.style.display=ednnaChat.style.display==='flex'?'none':'flex';};
-    ednnaClose.onclick=()=>ednnaChat.style.display='none';
-    function sendEdnnaMsg(){
-      const input=document.getElementById('ednna-text');const text=input.value.trim();if(!text)return;
-      const user=document.createElement('div');user.className='msg user';user.textContent=text;ednnaMsgs.appendChild(user);input.value='';ednnaMsgs.scrollTop=ednnaMsgs.scrollHeight;
-      setTimeout(()=>{const reply=document.createElement('div');reply.className='msg ednna';reply.textContent=gerarRespostaEdnna(text);ednnaMsgs.appendChild(reply);ednnaMsgs.scrollTop=ednnaMsgs.scrollHeight;},600);
-    }
-    function gerarRespostaEdnna(msg){
-      const t=msg.toLowerCase();
-      if(t.includes("erro"))return"Verifique a seção 'Histórico de Processamentos' para detalhes de erro.";
-      if(t.includes("status"))return"O Splitter atualiza o status a cada 30 segundos automaticamente.";
-      if(t.includes("download"))return"Você pode baixar os arquivos ZIPs na seção 'Arquivos Gerados'.";
-      if(t.includes("oi")||t.includes("olá"))return"Oi 👋 Tudo bem? Como posso ajudar você?";
-      return"Ainda estou aprendendo! Logo poderei consultar os dados do sistema em tempo real. 😊";
-    }
-
-    loadFiles(); setInterval(loadFiles,30000);
-  </script>
+  <script src="/static/main.js"></script>
 </body>
 </html>
