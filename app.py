@@ -1,7 +1,10 @@
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
 import os
 import csv
+import io
+import zipfile
 from datetime import datetime
+import pytz  # ✅ para timezone Brasil
 from splitter_core_v3 import process_file, LOG_PATH
 
 app = Flask(__name__)
@@ -14,6 +17,9 @@ LOG_DIR = "logs"
 
 for d in [INPUT_DIR, OUTPUT_DIR, ERROR_DIR, LOG_DIR]:
     os.makedirs(d, exist_ok=True)
+
+# ✅ Timezone Brasil
+TZ_BR = pytz.timezone("America/Sao_Paulo")
 
 # ==============================
 # Página principal (Painel)
@@ -30,7 +36,7 @@ def home():
     return render_template("index.html", files_input=files_input, files_output=files_output, logs=logs)
 
 # ==============================
-# API: Upload de arquivo (agora processa automático)
+# API: Upload de arquivo (processamento automático)
 # ==============================
 @app.route("/api/upload", methods=["POST"])
 def upload_file():
@@ -58,7 +64,7 @@ def upload_file():
         return jsonify({"erro": str(e)}), 500
 
 # ==============================
-# API: Processar
+# API: Processar manualmente
 # ==============================
 @app.route("/api/process", methods=["POST"])
 def process_endpoint():
@@ -96,19 +102,14 @@ def download_file(filename):
     return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
 
 # ==============================
-# API: Download ZIP (corrigido)
+# API: Download ZIP consolidado
 # ==============================
-from flask import send_file
-import io, zipfile, os
-from datetime import datetime
-
 @app.route("/api/download-all", methods=["GET"])
 def api_download_all():
     """Gera e envia um ZIP real contendo todos os arquivos processados."""
     base_output = "output"
     memory_file = io.BytesIO()
 
-    # Cria o ZIP na memória
     with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, _, files in os.walk(base_output):
             for f in files:
@@ -117,8 +118,7 @@ def api_download_all():
                 zipf.write(file_path, arcname)
     memory_file.seek(0)
 
-    # Envia como download direto
-    zip_name = f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    zip_name = f"output_{datetime.now(TZ_BR).strftime('%Y%m%d_%H%M%S')}.zip"
     return send_file(
         memory_file,
         mimetype="application/zip",
@@ -127,7 +127,7 @@ def api_download_all():
     )
 
 # ==============================
-# API: Scan diretórios (atualizada com data/hora)
+# API: Scan diretórios (ajustado com fuso horário Brasil)
 # ==============================
 @app.route("/api/scan", methods=["GET"])
 def api_scan():
@@ -141,9 +141,10 @@ def api_scan():
         for f in sorted(os.listdir(base_input)):
             fpath = os.path.join(base_input, f)
             if os.path.isfile(fpath):
+                dt_brasil = datetime.fromtimestamp(os.path.getmtime(fpath), TZ_BR)
                 result["input"].append({
                     "nome": f,
-                    "data_hora": datetime.fromtimestamp(os.path.getmtime(fpath)).strftime("%d/%m/%Y %H:%M:%S")
+                    "data_hora": dt_brasil.strftime("%d/%m/%Y %H:%M:%S")
                 })
 
     # 🔹 Lista OUTPUT agrupando por subpasta NSA
@@ -155,12 +156,17 @@ def api_scan():
             if not lote.startswith("NSA_"):
                 continue
             for f in sorted(files):
+                fpath = os.path.join(root, f)
+                dt_brasil = datetime.fromtimestamp(os.path.getmtime(fpath), TZ_BR)
                 result["output"].append({
                     "nome": f,
                     "lote": lote,
-                    "data_hora": datetime.fromtimestamp(os.path.getmtime(os.path.join(root, f))).strftime("%d/%m/%Y %H:%M:%S")
+                    "data_hora": dt_brasil.strftime("%d/%m/%Y %H:%M:%S")
                 })
     return jsonify(result)
 
+# ==============================
+# Execução
+# ==============================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
