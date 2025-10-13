@@ -1,7 +1,7 @@
 # =============================================================
 # modules/eefi_processor.py
 # Extrato Financeiro – EEFI (REDE / NETUNNA)
-# v5.2 | Netunna Splitter Framework
+# v5.4 | Netunna Splitter Framework
 # =============================================================
 
 from pathlib import Path
@@ -12,7 +12,7 @@ logger = logging.getLogger("splitter")
 logger.setLevel(logging.INFO)
 
 # =============================================================
-# 📋 Layout Posições (EEFI v4.00)
+# 📋 Layout Posições (EEFI v4.00 – 05/2023)
 # =============================================================
 LAYOUT_POS = {
     "030": {"tipo": (0, 3), "data_emissao": (3, 11), "sequencia": (75, 81)},
@@ -23,14 +23,18 @@ LAYOUT_POS = {
     "038": {"tipo": (0, 3), "valor": (31, 46)},  # Débito bancário
     "040": {"tipo": (0, 3), "pv": (3, 12), "valor": (12, 27)},  # Simplificado
     "043": {"tipo": (0, 3), "valor": (48, 63)},  # Ajuste crédito
-    "052": {  # Trailer geral (e agora também dos filhos)
+    "052": {  # Trailer geral / filho
         "tipo": (0, 3),
         "qtde_matrizes": (3, 7),
         "qtde_registros": (7, 13),
         "pv": (13, 22),
+        "qtde_cred_norm": (22, 26),
         "valor_rv": (26, 41),
+        "qtde_ant": (41, 47),
         "valor_ant": (47, 62),
+        "qtde_aj_cred": (62, 66),
         "valor_aj_cred": (66, 81),
+        "qtde_aj_deb": (81, 85),
         "valor_aj_deb": (85, 100),
     },
 }
@@ -44,14 +48,6 @@ def _slice(line: str, rng: Tuple[int, int]) -> str:
 def _to_int_cents(num_txt: str) -> int:
     num = "".join(ch for ch in num_txt if ch.isdigit())
     return int(num or "0")
-
-def _write_money(line: str, rng: Tuple[int, int], value_cents: int) -> str:
-    s = str(value_cents).rjust(rng[1] - rng[0], "0")
-    return line[:rng[0]] + s + line[rng[1]:]
-
-def _write_number(line: str, rng: Tuple[int, int], value: int) -> str:
-    s = str(value).rjust(rng[1] - rng[0], "0")
-    return line[:rng[0]] + s + line[rng[1]:]
 
 # =============================================================
 # 🚀 Função principal
@@ -117,41 +113,53 @@ def process_eefi(file_path: str, output_root: str = "output") -> dict:
         pv_totais = []
 
         # -----------------------------------------------------
-        # Geração dos filhos com trailer 052
+        # Processar PVs e gerar filhos
         # -----------------------------------------------------
         for pv, registros in pv_map.items():
-            qtd_registros = 2 + len(registros)  # 030 + registros + 052
+            qtd_registros = 2 + len(registros)  # header + registros + trailer
+            qtd_cred_norm = qtd_ant = qtd_aj_cred = qtd_aj_deb = 0
             valor_cred_norm = valor_ant = valor_aj_cred = valor_aj_deb = 0
 
             for ln in registros:
                 tipo = ln[0:3]
                 if tipo in ("034", "036", "043", "035", "038", "040"):
                     valor = _to_int_cents(_slice(ln, LAYOUT_POS[tipo]["valor"]))
+                    if valor == 0 and tipo == "040":
+                        logger.warning(f"⚠️ Valor líquido zerado no registro {tipo} PV={pv} — mantendo total 0.")
                     if tipo in ("034", "040"):
+                        qtd_cred_norm += 1
                         valor_cred_norm += valor
                     elif tipo == "036":
+                        qtd_ant += 1
                         valor_ant += valor
                     elif tipo == "043":
+                        qtd_aj_cred += 1
                         valor_aj_cred += valor
                     elif tipo in ("035", "038"):
+                        qtd_aj_deb += 1
                         valor_aj_deb += valor
 
             total_pv = valor_cred_norm + valor_ant + valor_aj_cred - valor_aj_deb
             soma_total_arquivos += total_pv
             pv_totais.append((pv, total_pv))
 
-            # trailer 052 do filho
-            trailer_052 = " " * 400
-            trailer_052 = "052" + trailer_052[3:]  # define tipo
-            trailer_052 = _write_number(trailer_052, LAYOUT_POS["052"]["qtde_matrizes"], 1)
-            trailer_052 = _write_number(trailer_052, LAYOUT_POS["052"]["qtde_registros"], qtd_registros)
-            trailer_052 = _write_number(trailer_052, LAYOUT_POS["052"]["pv"], int(pv))
-            trailer_052 = _write_money(trailer_052, LAYOUT_POS["052"]["valor_rv"], valor_cred_norm)
-            trailer_052 = _write_money(trailer_052, LAYOUT_POS["052"]["valor_ant"], valor_ant)
-            trailer_052 = _write_money(trailer_052, LAYOUT_POS["052"]["valor_aj_cred"], valor_aj_cred)
-            trailer_052 = _write_money(trailer_052, LAYOUT_POS["052"]["valor_aj_deb"], valor_aj_deb)
+            # Trailer 052 recalculado e fiel ao layout oficial
+            trailer_052 = (
+                f"052"
+                f"{1:0>4}"                                # qtde_matrizes
+                f"{qtd_registros:0>6}"                    # qtde_registros
+                f"{int(pv):0>9}"                          # PV
+                f"{qtd_cred_norm:0>4}"                    # qtd créditos normais
+                f"{valor_cred_norm:0>15}"                 # valor créditos normais
+                f"{qtd_ant:0>6}"                          # qtd antecipações
+                f"{valor_ant:0>15}"                       # valor antecipações
+                f"{qtd_aj_cred:0>4}"                      # qtd ajustes crédito
+                f"{valor_aj_cred:0>15}"                   # valor ajustes crédito
+                f"{qtd_aj_deb:0>4}"                       # qtd ajustes débito
+                f"{valor_aj_deb:0>15}"                    # valor ajustes débito
+            ).ljust(400)
 
-            # gerar arquivo filho
+            # Gera o arquivo filho
             child_name = f"{pv}_{data_emissao}_{nsa}_EEFI.txt"
             child_path = out_dir / child_name
             with child_path.open("w", encoding="utf-8") as f:
