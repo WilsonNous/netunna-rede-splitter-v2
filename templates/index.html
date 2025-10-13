@@ -4,49 +4,232 @@
   <meta charset="UTF-8">
   <title>Netunna REDE Splitter v3</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f6f9; margin: 0; }
-    header { background: #ff6d00; color: white; padding: 15px 25px; }
-    h1 { margin: 0; font-size: 24px; }
-    main { padding: 20px; }
-    section { background: #fff; border-radius: 8px; padding: 15px; margin-bottom: 20px;
-              box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    h2 { color: #333; font-size: 18px; margin-top: 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { padding: 8px; border: 1px solid #ddd; text-align: left; font-size: 14px; }
-    th { background: #ff9100; color: white; }
-    tr:nth-child(even) { background: #fafafa; }
+    /* =============================
+       🌐 ESTILO GERAL
+    ============================== */
+    body {
+      font-family: "Inter", "Roboto", Arial, sans-serif;
+      background: #f6f7fb;
+      color: #333;
+      margin: 0;
+    }
+
+    header {
+      background: #ff6d00;
+      color: white;
+      padding: 18px 28px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0.5px;
+    }
+
+    header small {
+      display: block;
+      font-size: 14px;
+      opacity: 0.9;
+      margin-top: 4px;
+    }
+
+    /* Indicador de status */
+    .status-indicador {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.15);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .status-indicador span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .ativo span { background: #00ff55; }
+    .parado span { background: #ff4444; }
+    .desconhecido span { background: #ffbb00; }
+
+    main {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+      padding: 25px;
+    }
+
+    section {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+
+    section:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    }
+
+    h2 {
+      color: #ff6d00;
+      font-size: 18px;
+      margin-top: 0;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #ff6d00;
+      padding-bottom: 5px;
+    }
+
+    button {
+      background: #ff6d00;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-right: 6px;
+      transition: background 0.2s ease;
+    }
+
+    button:hover {
+      background: #e55f00;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 8px;
+      border: 1px solid #e0e0e0;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      background: #ff9100;
+      color: white;
+    }
+
+    tr:nth-child(even) {
+      background: #fafafa;
+    }
+
     .ok { color: green; font-weight: bold; }
     .erro { color: red; font-weight: bold; }
-    footer { text-align: center; font-size: 13px; color: #777; margin-top: 20px; padding: 10px; }
 
-    /* Agrupamento por lote */
-    .lote-grupo { background: #fff; border-radius: 8px; padding: 10px 15px; margin-bottom: 20px;
-                  box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-    .lote-grupo h3 { color: #ff6d00; font-size: 16px; margin: 5px 0 10px; }
-    .resumo-output { font-weight: bold; color: #333; margin-bottom: 10px; }
+    footer {
+      text-align: center;
+      font-size: 13px;
+      color: #777;
+      padding: 15px;
+      background: #fff;
+      border-top: 1px solid #eee;
+    }
+
+    /* =============================
+       📦 BLOCO DE LOTE AGRUPADO
+    ============================== */
+    .lote-grupo {
+      background: #fdfdfd;
+      border-radius: 8px;
+      margin-top: 15px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+
+    .lote-header {
+      background: #fff5ef;
+      padding: 10px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      border-bottom: 1px solid #ffe0c2;
+    }
+
+    .lote-header h3 {
+      color: #ff6d00;
+      font-size: 15px;
+      margin: 0;
+    }
+
+    .toggle-btn {
+      background: none;
+      border: none;
+      font-size: 22px;
+      color: #ff6d00;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .lote-content {
+      display: none;
+      animation: fadeIn 0.25s ease-in;
+      padding: 0 10px 10px;
+    }
+
+    .resumo-output {
+      font-weight: bold;
+      color: #444;
+      margin: 10px 0 15px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>🧩 Netunna REDE Splitter v3</h1>
-    <small>Processamento Automático, Validação e Logs</small>
+    <div>
+      <h1>🧩 Netunna REDE Splitter v3</h1>
+      <small>Processamento Automático, Validação e Logs</small>
+    </div>
+    <div id="statusBar" class="status-indicador desconhecido">
+      <span></span> <b>Verificando...</b>
+    </div>
   </header>
 
   <main>
     <section>
-      <h2>📂 Arquivos Enviados (Input)</h2>
-      <button onclick="loadFiles()">🔄 Atualizar Lista</button>
+      <h2>📂 Arquivos Enviados</h2>
+      <div>
+        <button onclick="loadFiles()">🔄 Atualizar Lista</button>
+      </div>
       <table id="inputTable">
-        <thead><tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr></thead>
+        <thead>
+          <tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr>
+        </thead>
         <tbody></tbody>
       </table>
     </section>
 
     <section>
-      <h2>📦 Arquivos Gerados (Output)</h2>
+      <h2>📦 Arquivos Gerados</h2>
       <div class="resumo-output" id="outputSummary">📊 Nenhum lote processado ainda.</div>
-      <button onclick="loadFiles()">🔄 Atualizar</button>
-      <button onclick="downloadAll()">⬇️ Baixar ZIPs por NSA</button>
+      <div>
+        <button onclick="loadFiles()">🔄 Atualizar</button>
+        <button onclick="downloadAll()">⬇️ Baixar ZIPs por NSA</button>
+      </div>
       <div id="outputContainer"></div>
     </section>
 
@@ -74,8 +257,29 @@
   </footer>
 
   <script>
+    async function atualizarStatus() {
+      const barra = document.getElementById("statusBar");
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+
+        if (data.status === "ativo" || data.online || data.ok) {
+          barra.className = "status-indicador ativo";
+          barra.innerHTML = `<span></span> 🟢 Ativo`;
+        } else {
+          barra.className = "status-indicador parado";
+          barra.innerHTML = `<span></span> 🔴 Parado`;
+        }
+      } catch (err) {
+        barra.className = "status-indicador desconhecido";
+        barra.innerHTML = `<span></span> ⚠️ Sem resposta`;
+      }
+    }
+
     async function loadFiles() {
       try {
+        await atualizarStatus();
+
         const resStatus = await fetch('/api/status');
         const data = await resStatus.json();
 
@@ -118,7 +322,17 @@
           Object.keys(grupos).sort().forEach(lote => {
             const grupoDiv = document.createElement("div");
             grupoDiv.classList.add("lote-grupo");
-            grupoDiv.innerHTML = `<h3>📦 ${lote}</h3>
+
+            const header = document.createElement("div");
+            header.classList.add("lote-header");
+            header.innerHTML = `
+              <h3>📦 ${lote}</h3>
+              <button class="toggle-btn" onclick="toggleLote(this)">+</button>
+            `;
+
+            const content = document.createElement("div");
+            content.classList.add("lote-content");
+            content.innerHTML = `
               <table>
                 <thead>
                   <tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr>
@@ -131,7 +345,11 @@
                       <td><a href="/api/download/${encodeURIComponent(a.nome)}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
                     </tr>`).join('')}
                 </tbody>
-              </table>`;
+              </table>
+            `;
+
+            grupoDiv.appendChild(header);
+            grupoDiv.appendChild(content);
             outputContainer.appendChild(grupoDiv);
           });
         }
@@ -142,6 +360,13 @@
       } catch (err) {
         console.error("Erro ao carregar dados:", err);
       }
+    }
+
+    function toggleLote(btn) {
+      const content = btn.parentElement.nextElementSibling;
+      const isVisible = content.style.display === "block";
+      content.style.display = isVisible ? "none" : "block";
+      btn.textContent = isVisible ? "+" : "−";
     }
 
     async function downloadAll() {
