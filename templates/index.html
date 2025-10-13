@@ -2,11 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Netunna REDE Splitter v5</title>
+  <title>Netunna REDE Splitter v5.3</title>
   <style>
     body {
       font-family: "Inter","Roboto",Arial,sans-serif;
       background:#f6f7fb; color:#333; margin:0;
+      animation: fadeInBody 0.5s ease-in;
+    }
+
+    @keyframes fadeInBody {
+      from { opacity:0; transform:translateY(-10px); }
+      to { opacity:1; transform:translateY(0); }
     }
 
     header {
@@ -22,12 +28,34 @@
       display:flex; align-items:center; gap:8px;
       background:rgba(255,255,255,.15); padding:6px 12px;
       border-radius:20px; font-size:14px; font-weight:500; white-space:nowrap;
+      box-shadow:inset 0 0 3px rgba(0,0,0,0.1);
     }
 
-    .status-indicador span { width:10px; height:10px; border-radius:50%; display:inline-block; }
-    .ativo span { background:#00d24b; }
-    .parado span { background:#ff4444; }
-    .desconhecido span { background:#ffbb00; }
+    .status-indicador span {
+      width:10px; height:10px; border-radius:50%; display:inline-block;
+      animation: none;
+    }
+
+    .ativo span {
+      background:#00d24b;
+      animation: pulseGreen 1.5s infinite;
+    }
+
+    .parado span {
+      background:#ff4444;
+      animation: pulseRed 1.5s infinite;
+    }
+
+    @keyframes pulseGreen {
+      0% { box-shadow:0 0 0 0 rgba(0,210,75,0.5); }
+      70% { box-shadow:0 0 0 6px rgba(0,210,75,0); }
+      100% { box-shadow:0 0 0 0 rgba(0,210,75,0); }
+    }
+    @keyframes pulseRed {
+      0% { box-shadow:0 0 0 0 rgba(255,68,68,0.5); }
+      70% { box-shadow:0 0 0 6px rgba(255,68,68,0); }
+      100% { box-shadow:0 0 0 0 rgba(255,68,68,0); }
+    }
 
     main {
       display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -37,8 +65,9 @@
     section {
       background:#fff; border-radius:10px; padding:20px;
       box-shadow:0 3px 6px rgba(0,0,0,.08);
-      display:flex; flex-direction:column; transition:all .25s ease;
+      display:flex; flex-direction:column;
       min-width:0;
+      overflow:hidden;
     }
 
     h2 {
@@ -49,12 +78,12 @@
     button {
       background:#ff6d00; color:#fff; border:none; border-radius:6px;
       padding:7px 12px; font-size:14px; cursor:pointer; margin-right:6px;
-      transition:background .2s ease;
+      transition:background .2s ease, transform .1s ease;
     }
-    button:hover { background:#e55f00; }
+    button:hover { background:#e55f00; transform:scale(1.02); }
 
     table {
-      width:100%; border-collapse:collapse; margin:0; border-radius:6px; overflow:hidden;
+      width:100%; border-collapse:collapse;
     }
 
     th, td {
@@ -62,15 +91,21 @@
       text-align:left; font-size:14px;
     }
 
-    th { background:#ff9100; color:#fff; }
-    tr:nth-child(even) { background:#fafafa; }
+    th {
+      background:#ff9100; color:#fff;
+      position: sticky; top: 0; z-index: 2;
+      box-shadow:0 2px 2px rgba(0,0,0,0.05);
+    }
 
+    tr:nth-child(even) { background:#fafafa; }
     .ok { color:green; font-weight:bold; }
     .erro { color:#c00; font-weight:bold; }
+    .mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
 
     footer {
       text-align:center; font-size:13px; color:#777; padding:15px;
       background:#fff; border-top:1px solid #eee;
+      position:relative;
     }
 
     .scroll-box {
@@ -81,42 +116,88 @@
       margin-top:10px;
     }
 
-    .scroll-box::-webkit-scrollbar { height:8px; width:8px; }
-    .scroll-box::-webkit-scrollbar-thumb { background:#ccc; border-radius:4px; }
-    .scroll-box:hover::-webkit-scrollbar-thumb { background:#999; }
-
-    .mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
+    .scroll-box::-webkit-scrollbar,
+    .lote-content::-webkit-scrollbar { height:8px; width:8px; }
+    .scroll-box::-webkit-scrollbar-thumb,
+    .lote-content::-webkit-scrollbar-thumb { background:#ccc; border-radius:4px; }
+    .scroll-box:hover::-webkit-scrollbar-thumb,
+    .lote-content:hover::-webkit-scrollbar-thumb { background:#999; }
 
     .table-count {
-      font-size:13px; color:#666; margin-top:6px;
+      font-size:13px; color:#555; margin-top:6px;
       text-align:right; font-style:italic;
     }
 
+    /* === Lotes === */
     .lote-grupo {
       background:#fdfdfd; border-radius:8px; margin-top:15px;
-      box-shadow:0 1px 4px rgba(0,0,0,.08); overflow:hidden;
+      box-shadow:0 1px 4px rgba(0,0,0,.08);
+      overflow:hidden;
+      transition:background .3s ease;
     }
 
+    .lote-grupo.open { background:#fff9f3; }
+
     .lote-header {
-      background:#fff5ef; padding:10px 15px;
+      background:#fff5ef; padding:8px 12px;
       display:flex; justify-content:space-between; align-items:center;
       cursor:pointer; border-bottom:1px solid #ffe0c2;
     }
 
-    .lote-header h3 { color:#ff6d00; font-size:15px; margin:0; }
-    .toggle-btn { background:none; border:none; font-size:22px; color:#ff6d00; cursor:pointer; font-weight:bold; }
+    .lote-header h3 {
+      color:#ff6d00; font-size:14px; margin:0; font-weight:600;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+      display:flex; align-items:center; gap:6px;
+    }
 
-    .lote-content { display:none; animation:fadeIn .25s ease-in; padding:0 10px 10px; }
+    .badge {
+      background:#ff9100; color:#fff;
+      font-size:11px; padding:2px 6px; border-radius:10px;
+    }
 
-    .resumo-output { font-weight:bold; color:#444; margin:10px 0 15px; }
+    .toggle-btn {
+      background:none; border:none; font-size:20px; color:#ff6d00; cursor:pointer;
+      font-weight:bold; transition:transform .2s ease;
+    }
+    .toggle-btn:hover { transform:scale(1.2); }
+
+    .lote-content {
+      display:block;
+      overflow:hidden;
+      max-height:0;
+      opacity:0;
+      transition: max-height .4s ease, opacity .4s ease;
+      padding:0 10px;
+    }
+
+    .lote-content.open {
+      opacity:1;
+      max-height:260px;
+      overflow:auto;
+      padding-bottom:10px;
+    }
+
+    .resumo-output {
+      font-weight:bold; color:#444; margin:10px 0 15px;
+    }
 
     @keyframes fadeIn { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
+
+    .versao {
+      position:absolute;
+      right:12px;
+      bottom:8px;
+      font-size:11px;
+      color:#aaa;
+      opacity:.6;
+      font-style:italic;
+    }
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>🧩 Netunna REDE Splitter v5</h1>
+      <h1>🧩 Netunna REDE Splitter v5.3</h1>
       <small>Processamento Automático, Validação e Logs</small>
     </div>
     <div id="statusBar" class="status-indicador desconhecido">
@@ -125,7 +206,6 @@
   </header>
 
   <main>
-    <!-- INPUT -->
     <section>
       <h2>📂 Arquivos Enviados</h2>
       <div><button onclick="loadFiles()">🔄 Atualizar Lista</button></div>
@@ -138,7 +218,6 @@
       <div id="inputCount" class="table-count"></div>
     </section>
 
-    <!-- OUTPUT -->
     <section>
       <h2>📦 Arquivos Gerados</h2>
       <div class="resumo-output" id="outputSummary">📊 Nenhum lote processado ainda.</div>
@@ -149,7 +228,6 @@
       <div id="outputContainer"></div>
     </section>
 
-    <!-- LOGS -->
     <section>
       <h2>🧾 Histórico de Processamentos</h2>
       <div class="scroll-box">
@@ -173,7 +251,8 @@
   </main>
 
   <footer>
-    © Netunna Automations — REDE Splitter v5 | Atualização automática a cada 30s
+    © Netunna Automations — REDE Splitter v5.3 | Atualização automática a cada 30s
+    <span class="versao">Build Stable</span>
   </footer>
 
   <script>
@@ -250,7 +329,7 @@
         const scan = await resScan.json();
         const logsStatus = await atualizarStatusComFallback(scan);
 
-        // === INPUT ===
+        // INPUT
         const tbodyIn = document.querySelector("#inputTable tbody");
         tbodyIn.innerHTML = "";
         if (!scan.input?.length) {
@@ -262,9 +341,9 @@
             tbodyIn.appendChild(tr);
           });
         }
-        document.getElementById("inputCount").textContent = `📊 Exibindo ${scan.input?.length || 0} registro${scan.input?.length === 1 ? "" : "s"}.`;
+        document.getElementById("inputCount").textContent = `📊 Exibindo ${scan.input?.length || 0} registros.`;
 
-        // === OUTPUT ===
+        // OUTPUT
         const outputContainer = document.getElementById("outputContainer");
         outputContainer.innerHTML = "";
         const summary = document.getElementById("outputSummary");
@@ -282,37 +361,33 @@
 
           summary.textContent = `📊 ${Object.keys(grupos).length} lotes processados — total de ${scan.output.length} arquivos gerados.`;
 
-          Object.keys(grupos)
-            .sort()
-            .forEach(lote => {
-              const grupoDiv = document.createElement("div");
-              grupoDiv.classList.add("lote-grupo");
-              const header = document.createElement("div");
-              header.classList.add("lote-header");
-              header.innerHTML = `<h3>📦 ${lote} (${grupos[lote].length} arquivos)</h3><button class="toggle-btn" onclick="toggleLote(this)">+</button>`;
-              const content = document.createElement("div");
-              content.classList.add("lote-content");
-              content.innerHTML = `
-                <table>
-                  <thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead>
-                  <tbody>
-                    ${grupos[lote]
-                      .map(a => `
-                        <tr>
-                          <td class="mono">${a.nome}</td>
-                          <td>${a.data_hora}</td>
-                          <td><a href="/api/download/${encodeURIComponent(a.nome)}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
-                        </tr>`)
-                      .join("")}
-                  </tbody>
-                </table>`;
-              grupoDiv.appendChild(header);
-              grupoDiv.appendChild(content);
-              outputContainer.appendChild(grupoDiv);
-            });
+          Object.keys(grupos).sort().forEach(lote => {
+            const grupoDiv = document.createElement("div");
+            grupoDiv.classList.add("lote-grupo");
+            const header = document.createElement("div");
+            header.classList.add("lote-header");
+            header.innerHTML = `<h3>📦 ${lote} <span class="badge">${grupos[lote].length}</span></h3><button class="toggle-btn" onclick="toggleLote(this)">+</button>`;
+            const content = document.createElement("div");
+            content.classList.add("lote-content");
+            content.innerHTML = `
+              <table>
+                <thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead>
+                <tbody>
+                  ${grupos[lote].map(a => `
+                    <tr>
+                      <td class="mono">${a.nome}</td>
+                      <td>${a.data_hora}</td>
+                      <td><a href="/api/download/${encodeURIComponent(a.nome)}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
+                    </tr>`).join("")}
+                </tbody>
+              </table>`;
+            grupoDiv.appendChild(header);
+            grupoDiv.appendChild(content);
+            outputContainer.appendChild(grupoDiv);
+          });
         }
 
-        // === LOGS ===
+        // LOGS
         const tbodyLog = document.querySelector("#logTable tbody");
         tbodyLog.innerHTML = "";
         const logs = scan.logs?.length ? scan.logs : logsStatus;
@@ -333,7 +408,7 @@
             tbodyLog.appendChild(tr);
           });
         }
-        document.getElementById("logCount").textContent = `📊 Exibindo ${logs?.length || 0} registro${logs?.length === 1 ? "" : "s"}.`;
+        document.getElementById("logCount").textContent = `📊 Exibindo ${logs?.length || 0} registros.`;
 
       } catch (err) {
         console.error("Erro ao carregar dados:", err);
@@ -342,10 +417,19 @@
     }
 
     function toggleLote(btn) {
-      const content = btn.parentElement.nextElementSibling;
-      const visible = content.style.display === "block";
-      content.style.display = visible ? "none" : "block";
-      btn.textContent = visible ? "+" : "−";
+      const grupo = btn.closest(".lote-grupo");
+      const content = grupo.querySelector(".lote-content");
+      const open = content.classList.contains("open");
+      document.querySelectorAll(".lote-content.open").forEach(c => {
+        c.classList.remove("open");
+        c.parentElement.classList.remove("open");
+        c.previousElementSibling.querySelector("button").textContent = "+";
+      });
+      if (!open) {
+        content.classList.add("open");
+        grupo.classList.add("open");
+        btn.textContent = "−";
+      }
     }
 
     async function downloadAll() {
