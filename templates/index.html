@@ -3,11 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <title>Netunna REDE Splitter v5.3</title>
-  <style><!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <title>Netunna REDE Splitter v5.3</title>
   <style>
     body {
       font-family: "Inter","Roboto",Arial,sans-serif;
@@ -159,6 +154,7 @@
     #ednna-input button:hover { background:#e55f00; }
   </style>
 </head>
+
 <body>
   <header>
     <div>
@@ -213,7 +209,13 @@
 
   <script>
     const HEARTBEAT_MS = 3 * 60 * 1000;
-    function atualizarRelogio(){const agora=new Date();const op={timeZone:'America/Sao_Paulo',hour12:false};document.getElementById("currentTime").textContent=agora.toLocaleString('pt-BR',op);}atualizarRelogio();setInterval(atualizarRelogio,60000);
+
+    function atualizarRelogio(){
+      const agora=new Date();
+      const op={timeZone:'America/Sao_Paulo',hour12:false};
+      document.getElementById("currentTime").textContent=agora.toLocaleString('pt-BR',op);
+    }
+    atualizarRelogio(); setInterval(atualizarRelogio,60000);
 
     function parseBRDateTime(s){if(!s)return null;const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);if(!m)return null;const[_,dd,mm,yyyy,HH,MM,SS]=m;return new Date(yyyy,mm-1,dd,HH,MM,SS);}
     function formatRelativo(ms){if(!ms)return"—";const s=Math.floor(ms/1000);if(s<60)return`${s}s`;const m=Math.floor(s/60);const r=s%60;return`${m}m ${r}s`;}
@@ -221,15 +223,61 @@
     function pintarStatus({ativo,delta=null}){const b=document.getElementById("statusBar");if(ativo){b.className="status-indicador ativo";b.innerHTML=`<span></span> 🟢 Ativo • Última atividade: há ${formatRelativo(delta)}`;}else{b.className="status-indicador parado";b.innerHTML=`<span></span> 🔴 Parado • Última atividade: há ${formatRelativo(delta)}`;}}
 
     async function atualizarStatusComFallback(scan){try{const r=await fetch("/api/status");const d=await r.json();const ok=d.status?.toLowerCase()==="ativo"||d.online||d.ok;if(ok){pintarStatus({ativo:true});return d.logs||[];}else{const{ativo,delta}=inferStatusFromScan(scan||{});pintarStatus({ativo,delta});return d.logs||[];}}catch{const{ativo,delta}=inferStatusFromScan(scan||{});pintarStatus({ativo,delta});return[];}}
-    async function loadFiles(){try{const rs=await fetch("/api/scan");const scan=await rs.json();const logsStatus=await atualizarStatusComFallback(scan);
-      const tbodyIn=document.querySelector("#inputTable tbody");tbodyIn.innerHTML="";if(!scan.input?.length){tbodyIn.innerHTML=`<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;}else{scan.input.forEach(i=>{const tr=document.createElement("tr");tr.innerHTML=`<td class='mono'>${i.nome}</td><td>${i.data_hora}</td>`;tbodyIn.appendChild(tr);});}document.getElementById("inputCount").textContent=`📊 Exibindo ${scan.input?.length||0} registros.`;
-      const oc=document.getElementById("outputContainer");oc.innerHTML="";const s=document.getElementById("outputSummary");if(!scan.output?.length){oc.innerHTML=`<p style='text-align:center;'>Nenhum arquivo gerado.</p>`;s.textContent="📊 Nenhum lote processado ainda.";}else{const g={};scan.output.forEach(i=>{const l=i.lote||"NSA_000";if(!g[l])g[l]=[];g[l].push(i);});s.textContent=`📊 ${Object.keys(g).length} lotes processados — total de ${scan.output.length} arquivos.`;Object.keys(g).sort().forEach(l=>{const d=document.createElement("div");d.classList.add("lote-grupo");const h=document.createElement("div");h.classList.add("lote-header");h.innerHTML=`<h3>📦 ${l} <span class='badge'>${g[l].length}</span></h3><button class='toggle-btn' onclick='toggleLote(this)'>+</button>`;const c=document.createElement("div");c.classList.add("lote-content");c.innerHTML=`<table><thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead><tbody>${g[l].map(a=>`<tr><td class='mono'>${a.nome}</td><td>${a.data_hora}</td><td><a href='/api/download/${encodeURIComponent(a.nome)}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td></tr>`).join("")}</tbody></table>`;d.appendChild(h);d.appendChild(c);oc.appendChild(d);});}
-      const tl=document.querySelector("#logTable tbody");tl.innerHTML="";const logs=scan.logs?.length?scan.logs:logsStatus;if(!logs?.length){tl.innerHTML=`<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;}else{logs.slice().reverse().forEach(l=>{const st=l.status==="OK"?"ok":"erro";const tr=document.createElement("tr");tr.innerHTML=`<td>${l.data_hora}</td><td class='mono'>${l.arquivo}</td><td>${l.tipo}</td><td>${l.total_trailer}</td><td>${l.total_processado}</td><td class='${st}'>${l.status}</td><td>${l.detalhe}</td>`;tl.appendChild(tr);});}document.getElementById("logCount").textContent=`📊 Exibindo ${logs?.length||0} registros.`;}
-      catch(err){console.error("Erro:",err);document.getElementById("statusBar").innerHTML=`<span></span> ⚠️ Erro ao consultar API`;}}
-    function toggleLote(b){const g=b.closest(".lote-grupo");const c=g.querySelector(".lote-content");const o=c.classList.contains("open");document.querySelectorAll(".lote-content.open").forEach(x=>{x.classList.remove("open");x.parentElement.classList.remove("open");x.previousElementSibling.querySelector("button").textContent="+";});if(!o){c.classList.add("open");g.classList.add("open");b.textContent="−";}}
-    async function downloadAll(){try{const r=await fetch("/api/download-all");const d=await r.json();if(d.zips?.length){alert(`Foram gerados ${d.zips.length} arquivos ZIP.`);d.zips.forEach(z=>{const a=document.createElement("a");a.href=`/zips/${z}`;a.download=z;a.click();});}else alert("Nenhum ZIP foi gerado.");}catch{alert("Erro ao gerar os ZIPs.");}}
 
-    /* Ednna Chat */
+    async function loadFiles(){
+      try{
+        const rs=await fetch("/api/scan");const scan=await rs.json();
+        const logsStatus=await atualizarStatusComFallback(scan);
+
+        const tbodyIn=document.querySelector("#inputTable tbody");
+        tbodyIn.innerHTML="";
+        if(!scan.input?.length){tbodyIn.innerHTML=`<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;}
+        else{scan.input.forEach(i=>{const tr=document.createElement("tr");tr.innerHTML=`<td class='mono'>${i.nome}</td><td>${i.data_hora}</td>`;tbodyIn.appendChild(tr);});}
+        document.getElementById("inputCount").textContent=`📊 Exibindo ${scan.input?.length||0} registros.`;
+
+        const oc=document.getElementById("outputContainer");oc.innerHTML="";
+        const s=document.getElementById("outputSummary");
+        if(!scan.output?.length){oc.innerHTML=`<p style='text-align:center;'>Nenhum arquivo gerado.</p>`;s.textContent="📊 Nenhum lote processado ainda.";}
+        else{
+          const g={}; scan.output.forEach(i=>{const l=i.lote||"NSA_000";if(!g[l])g[l]=[];g[l].push(i);});
+          s.textContent=`📊 ${Object.keys(g).length} lotes processados — total de ${scan.output.length} arquivos.`;
+          Object.keys(g).sort().forEach(l=>{
+            const d=document.createElement("div");d.classList.add("lote-grupo");
+            const h=document.createElement("div");h.classList.add("lote-header");
+            h.innerHTML=`<h3>📦 ${l} <span class='badge'>${g[l].length}</span></h3><button class='toggle-btn' onclick='toggleLote(this)'>+</button>`;
+            const c=document.createElement("div");c.classList.add("lote-content");
+            c.innerHTML=`<table><thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead><tbody>${g[l].map(a=>`<tr><td class='mono'>${a.nome}</td><td>${a.data_hora}</td><td><a href='/api/download/${encodeURIComponent(a.nome)}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td></tr>`).join("")}</tbody></table>`;
+            d.appendChild(h);d.appendChild(c);oc.appendChild(d);
+          });
+        }
+
+        const tl=document.querySelector("#logTable tbody");tl.innerHTML="";
+        const logs=scan.logs?.length?scan.logs:logsStatus;
+        if(!logs?.length){tl.innerHTML=`<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;}
+        else{
+          logs.slice().reverse().forEach(l=>{
+            const st=l.status==="OK"?"ok":"erro";
+            const tr=document.createElement("tr");
+            tr.innerHTML=`<td>${l.data_hora}</td><td class='mono'>${l.arquivo}</td><td>${l.tipo}</td><td>${l.total_trailer}</td><td>${l.total_processado}</td><td class='${st}'>${l.status}</td><td>${l.detalhe}</td>`;
+            tl.appendChild(tr);
+          });
+        }
+        document.getElementById("logCount").textContent=`📊 Exibindo ${logs?.length||0} registros.`;
+      }catch(err){console.error("Erro:",err);document.getElementById("statusBar").innerHTML=`<span></span> ⚠️ Erro ao consultar API`;}
+    }
+
+    function toggleLote(b){const g=b.closest(".lote-grupo");const c=g.querySelector(".lote-content");const o=c.classList.contains("open");document.querySelectorAll(".lote-content.open").forEach(x=>{x.classList.remove("open");x.parentElement.classList.remove("open");x.previousElementSibling.querySelector("button").textContent="+";});if(!o){c.classList.add("open");g.classList.add("open");b.textContent="−";}}
+
+    async function downloadAll(){
+      try{const r=await fetch("/api/download-all");const d=await r.json();
+        if(d.zips?.length){
+          alert(`Foram gerados ${d.zips.length} arquivos ZIP.`);
+          d.zips.forEach(z=>{const a=document.createElement("a");a.href=`/zips/${z}`;a.download=z;a.click();});
+        } else alert("Nenhum ZIP foi gerado.");
+      }catch{alert("Erro ao gerar os ZIPs.");}
+    }
+
+    // Ednna
     const ednnaBtn=document.getElementById('ednna-btn');
     const ednnaChat=document.getElementById('ednna-chat');
     const ednnaClose=document.getElementById('ednna-close');
@@ -250,255 +298,7 @@
       return"Ainda estou aprendendo! Logo poderei consultar os dados do sistema em tempo real. 😊";
     }
 
-    loadFiles();setInterval(loadFiles,30000);
-  </script>
-</body>
-</html>
-
-    body {
-      font-family: "Inter","Roboto",Arial,sans-serif;
-      background:#f6f7fb; color:#333; margin:0;
-      animation: fadeInBody 0.5s ease-in;
-    }
-    @keyframes fadeInBody { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
-
-    header {
-      background:#ff6d00; color:#fff; padding:18px 28px;
-      box-shadow:0 2px 6px rgba(0,0,0,.15);
-      display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
-    }
-    header h1 { margin:0; font-size:24px; letter-spacing:.3px; }
-    header small { display:block; font-size:14px; opacity:.9; margin-top:2px; }
-
-    .status-indicador {
-      display:flex; align-items:center; gap:8px;
-      background:rgba(255,255,255,.15); padding:6px 12px;
-      border-radius:20px; font-size:14px; font-weight:500; white-space:nowrap;
-      box-shadow:inset 0 0 3px rgba(0,0,0,0.1);
-    }
-    .status-indicador span { width:10px; height:10px; border-radius:50%; display:inline-block; animation:none; }
-    .ativo span { background:#00d24b; animation:pulseGreen 1.5s infinite; }
-    .parado span { background:#ff4444; animation:pulseRed 1.5s infinite; }
-
-    @keyframes pulseGreen {
-      0% { box-shadow:0 0 0 0 rgba(0,210,75,0.5); }
-      70% { box-shadow:0 0 0 6px rgba(0,210,75,0); }
-      100% { box-shadow:0 0 0 0 rgba(0,210,75,0); }
-    }
-    @keyframes pulseRed {
-      0% { box-shadow:0 0 0 0 rgba(255,68,68,0.5); }
-      70% { box-shadow:0 0 0 6px rgba(255,68,68,0); }
-      100% { box-shadow:0 0 0 0 rgba(255,68,68,0); }
-    }
-
-    main {
-      display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap:20px; padding:25px;
-    }
-    section {
-      background:#fff; border-radius:10px; padding:20px;
-      box-shadow:0 3px 6px rgba(0,0,0,.08);
-      display:flex; flex-direction:column;
-      min-width:0; overflow:hidden;
-    }
-    h2 { color:#ff6d00; font-size:18px; margin:0 0 10px; border-bottom:2px solid #ff6d00; padding-bottom:6px; }
-
-    button {
-      background:#ff6d00; color:#fff; border:none; border-radius:6px;
-      padding:7px 12px; font-size:14px; cursor:pointer; margin-right:6px;
-      transition:background .2s ease, transform .1s ease;
-    }
-    button:hover { background:#e55f00; transform:scale(1.02); }
-
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:8px 10px; border:1px solid #e0e0e0; text-align:left; font-size:14px; }
-    th {
-      background:#ff9100; color:#fff;
-      position: sticky; top: 0; z-index: 2;
-      box-shadow:0 2px 2px rgba(0,0,0,0.05);
-    }
-    tr:nth-child(even) { background:#fafafa; }
-    .ok { color:green; font-weight:bold; }
-    .erro { color:#c00; font-weight:bold; }
-    .mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
-
-    footer {
-      text-align:center; font-size:13px; color:#777; padding:15px 10px 25px;
-      background:#fff; border-top:1px solid #eee; position:relative;
-    }
-
-    #clock {
-      font-weight:500; color:#444; font-size:13px;
-      margin-top:6px;
-    }
-
-    .scroll-box {
-      border:1px solid #eee; border-radius:6px; overflow:auto;
-      max-height:260px; margin-top:10px;
-    }
-    .scroll-box::-webkit-scrollbar,
-    .lote-content::-webkit-scrollbar { height:8px; width:8px; }
-    .scroll-box::-webkit-scrollbar-thumb,
-    .lote-content::-webkit-scrollbar-thumb { background:#ccc; border-radius:4px; }
-    .scroll-box:hover::-webkit-scrollbar-thumb,
-    .lote-content:hover::-webkit-scrollbar-thumb { background:#999; }
-
-    .table-count { font-size:13px; color:#555; margin-top:6px; text-align:right; font-style:italic; }
-
-    .lote-grupo {
-      background:#fdfdfd; border-radius:8px; margin-top:15px;
-      box-shadow:0 1px 4px rgba(0,0,0,.08);
-      overflow:hidden; transition:background .3s ease;
-    }
-    .lote-grupo.open { background:#fff9f3; }
-    .lote-header {
-      background:#fff5ef; padding:8px 12px;
-      display:flex; justify-content:space-between; align-items:center;
-      cursor:pointer; border-bottom:1px solid #ffe0c2;
-    }
-    .lote-header h3 {
-      color:#ff6d00; font-size:14px; margin:0; font-weight:600;
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-      display:flex; align-items:center; gap:6px;
-    }
-    .badge { background:#ff9100; color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; }
-    .toggle-btn { background:none; border:none; font-size:20px; color:#ff6d00; cursor:pointer; font-weight:bold; transition:transform .2s ease; }
-    .toggle-btn:hover { transform:scale(1.2); }
-    .lote-content {
-      display:block; overflow:hidden; max-height:0; opacity:0;
-      transition:max-height .4s ease, opacity .4s ease; padding:0 10px;
-    }
-    .lote-content.open { opacity:1; max-height:260px; overflow:auto; padding-bottom:10px; }
-    .resumo-output { font-weight:bold; color:#444; margin:10px 0 15px; }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
-
-    .versao {
-      position:absolute; right:12px; bottom:8px;
-      font-size:11px; color:#aaa; opacity:.6; font-style:italic;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <div>
-      <h1>🧩 Netunna REDE Splitter v5.3</h1>
-      <small>Processamento Automático, Validação e Logs</small>
-    </div>
-    <div id="statusBar" class="status-indicador desconhecido">
-      <span></span> <b>Verificando...</b>
-    </div>
-  </header>
-
-  <main>
-    <section>
-      <h2>📂 Arquivos Enviados</h2>
-      <div><button onclick="loadFiles()">🔄 Atualizar Lista</button></div>
-      <div class="scroll-box">
-        <table id="inputTable">
-          <thead><tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div id="inputCount" class="table-count"></div>
-    </section>
-
-    <section>
-      <h2>📦 Arquivos Gerados</h2>
-      <div class="resumo-output" id="outputSummary">📊 Nenhum lote processado ainda.</div>
-      <div>
-        <button onclick="loadFiles()">🔄 Atualizar</button>
-        <button onclick="downloadAll()">⬇️ Baixar ZIPs por NSA</button>
-      </div>
-      <div id="outputContainer"></div>
-    </section>
-
-    <section>
-      <h2>🧾 Histórico de Processamentos</h2>
-      <div class="scroll-box">
-        <table id="logTable">
-          <thead>
-            <tr>
-              <th>Data/Hora</th>
-              <th>Arquivo</th>
-              <th>Tipo</th>
-              <th>Total Trailer</th>
-              <th>Total Processado</th>
-              <th>Status</th>
-              <th>Detalhe</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div id="logCount" class="table-count"></div>
-    </section>
-  </main>
-
-  <footer>
-    © Netunna Automations — REDE Splitter v5.3 | Atualização automática a cada 30s
-    <div id="clock">🕒 <span id="currentTime"></span> • Horário de Brasília (BRT)</div>
-    <span class="versao">Build Stable</span>
-  </footer>
-
-  <script>
-    const HEARTBEAT_MS = 3 * 60 * 1000;
-
-    // Atualiza relógio do rodapé
-    function atualizarRelogio() {
-      const agora = new Date();
-      const opcoes = { timeZone: 'America/Sao_Paulo', hour12: false };
-      const dataHora = agora.toLocaleString('pt-BR', opcoes);
-      document.getElementById("currentTime").textContent = dataHora;
-    }
-    atualizarRelogio();
-    setInterval(atualizarRelogio, 60000);
-
-    // --- resto do código (igual ao anterior) ---
-    function parseBRDateTime(s) {
-      if (!s) return null;
-      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
-      if (!m) return null;
-      const [_, dd, mm, yyyy, HH, MM, SS] = m;
-      return new Date(yyyy, mm - 1, dd, HH, MM, SS);
-    }
-    function formatRelativo(msDiff) {
-      if (!msDiff) return "—";
-      const s = Math.floor(msDiff / 1000);
-      if (s < 60) return `${s}s`;
-      const m = Math.floor(s / 60);
-      const r = s % 60;
-      return `${m}m ${r}s`;
-    }
-
-    function inferStatusFromScan(scan) {
-      let lastTs = null;
-      if (scan?.input?.length) {
-        scan.input.forEach(item => {
-          const dt = parseBRDateTime(item.data_hora);
-          if (dt && (!lastTs || dt > lastTs)) lastTs = dt;
-        });
-      }
-      const now = new Date();
-      const delta = lastTs ? now - lastTs : null;
-      const ativo = delta != null && delta <= HEARTBEAT_MS;
-      return { ativo, delta };
-    }
-
-    function pintarStatus({ ativo, fallback = false, delta = null }) {
-      const barra = document.getElementById("statusBar");
-      if (ativo) {
-        barra.className = "status-indicador ativo";
-        const extra = fallback ? " (agente)" : "";
-        const info = delta ? ` • Última atividade: há ${formatRelativo(delta)}` : "";
-        barra.innerHTML = `<span></span> 🟢 Ativo${extra}${info}`;
-      } else {
-        barra.className = "status-indicador parado";
-        const info = delta ? ` • Última atividade: há ${formatRelativo(delta)}` : "";
-        barra.innerHTML = `<span></span> 🔴 Parado${info}`;
-      }
-    }
-
-    // (demais funções loadFiles, toggleLote e downloadAll mantidas iguais)
+    loadFiles(); setInterval(loadFiles,30000);
   </script>
 </body>
 </html>
