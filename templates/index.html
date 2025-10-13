@@ -88,6 +88,15 @@
 
     .mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
 
+    /* === Contadores === */
+    .table-count {
+      font-size:13px;
+      color:#666;
+      margin-top:6px;
+      text-align:right;
+      font-style:italic;
+    }
+
     /* === Lotes === */
     .lote-grupo {
       background:#fdfdfd; border-radius:8px; margin-top:15px;
@@ -136,6 +145,7 @@
           <tbody></tbody>
         </table>
       </div>
+      <div id="inputCount" class="table-count"></div>
     </section>
 
     <!-- OUTPUT -->
@@ -168,6 +178,7 @@
           <tbody></tbody>
         </table>
       </div>
+      <div id="logCount" class="table-count"></div>
     </section>
   </main>
 
@@ -260,6 +271,7 @@
             tbodyIn.appendChild(tr);
           });
         }
+        document.getElementById("inputCount").textContent = `📊 Exibindo ${scan.input?.length || 0} registro${scan.input?.length === 1 ? "" : "s"}.`;
 
         // === OUTPUT ===
         const outputContainer = document.getElementById("outputContainer");
@@ -292,88 +304,3 @@
               const content = document.createElement("div");
               content.classList.add("lote-content");
               content.innerHTML = `
-                <table>
-                  <thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead>
-                  <tbody>
-                    ${grupos[lote]
-                      .map(
-                        a => `
-                        <tr>
-                          <td class="mono">${a.nome}</td>
-                          <td>${a.data_hora}</td>
-                          <td><a href="/api/download/${encodeURIComponent(
-                            a.nome
-                          )}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
-                        </tr>`
-                      )
-                      .join("")}
-                  </tbody>
-                </table>`;
-              grupoDiv.appendChild(header);
-              grupoDiv.appendChild(content);
-              outputContainer.appendChild(grupoDiv);
-            });
-        }
-
-        // === LOGS ===
-        const tbodyLog = document.querySelector("#logTable tbody");
-        tbodyLog.innerHTML = "";
-        const logs = scan.logs || [];
-        if (!logs.length) {
-          tbodyLog.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
-        } else {
-          logs
-            .slice()
-            .reverse()
-            .forEach(l => {
-              const statusClass = l.status === "OK" ? "ok" : "erro";
-              const tr = document.createElement("tr");
-              tr.innerHTML = `
-                <td>${l.data_hora}</td>
-                <td class="mono">${l.arquivo}</td>
-                <td>${l.tipo}</td>
-                <td>${l.total_trailer}</td>
-                <td>${l.total_processado}</td>
-                <td class="${statusClass}">${l.status}</td>
-                <td>${l.detalhe}</td>`;
-              tbodyLog.appendChild(tr);
-            });
-        }
-      } catch (err) {
-        console.error("Erro ao carregar dados:", err);
-        const barra = document.getElementById("statusBar");
-        barra.className = "status-indicador desconhecido";
-        barra.innerHTML = `<span></span> ⚠️ Erro ao consultar API`;
-      }
-    }
-
-    function toggleLote(btn) {
-      const content = btn.parentElement.nextElementSibling;
-      const visible = content.style.display === "block";
-      content.style.display = visible ? "none" : "block";
-      btn.textContent = visible ? "+" : "−";
-    }
-
-    async function downloadAll() {
-      try {
-        const res = await fetch("/api/download-all");
-        const data = await res.json();
-        if (data.zips?.length) {
-          alert(`Foram gerados ${data.zips.length} arquivos ZIP por NSA.`);
-          data.zips.forEach(zip => {
-            const a = document.createElement("a");
-            a.href = `/zips/${zip}`;
-            a.download = zip;
-            a.click();
-          });
-        } else alert("Nenhum ZIP foi gerado.");
-      } catch {
-        alert("Erro ao gerar os ZIPs.");
-      }
-    }
-
-    loadFiles();
-    setInterval(loadFiles, 30000);
-  </script>
-</body>
-</html>
