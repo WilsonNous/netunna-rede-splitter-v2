@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Netunna REDE Splitter v3</title>
+  <title>Netunna REDE Splitter v5</title>
   <style>
     body {
       font-family: "Inter","Roboto",Arial,sans-serif;
@@ -73,7 +73,6 @@
       background:#fff; border-top:1px solid #eee;
     }
 
-    /* === Rolagem e largura controlada === */
     .scroll-box {
       border:1px solid #eee;
       border-radius:6px;
@@ -88,16 +87,11 @@
 
     .mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
 
-    /* === Contadores === */
     .table-count {
-      font-size:13px;
-      color:#666;
-      margin-top:6px;
-      text-align:right;
-      font-style:italic;
+      font-size:13px; color:#666; margin-top:6px;
+      text-align:right; font-style:italic;
     }
 
-    /* === Lotes === */
     .lote-grupo {
       background:#fdfdfd; border-radius:8px; margin-top:15px;
       box-shadow:0 1px 4px rgba(0,0,0,.08); overflow:hidden;
@@ -122,7 +116,7 @@
 <body>
   <header>
     <div>
-      <h1>🧩 Netunna REDE Splitter v3</h1>
+      <h1>🧩 Netunna REDE Splitter v5</h1>
       <small>Processamento Automático, Validação e Logs</small>
     </div>
     <div id="statusBar" class="status-indicador desconhecido">
@@ -134,14 +128,10 @@
     <!-- INPUT -->
     <section>
       <h2>📂 Arquivos Enviados</h2>
-      <div>
-        <button onclick="loadFiles()">🔄 Atualizar Lista</button>
-      </div>
+      <div><button onclick="loadFiles()">🔄 Atualizar Lista</button></div>
       <div class="scroll-box">
         <table id="inputTable">
-          <thead>
-            <tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr>
-          </thead>
+          <thead><tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -183,7 +173,7 @@
   </main>
 
   <footer>
-    © Netunna Automations — REDE Splitter v3 | Atualização automática a cada 30s
+    © Netunna Automations — REDE Splitter v5 | Atualização automática a cada 30s
   </footer>
 
   <script>
@@ -235,20 +225,22 @@
     }
 
     async function atualizarStatusComFallback(scan) {
-      const barra = document.getElementById("statusBar");
       try {
         const res = await fetch("/api/status");
         const data = await res.json();
         const ok = data.status?.toLowerCase() === "ativo" || data.online || data.ok;
         if (ok) {
           pintarStatus({ ativo: true, fallback: false });
-          return;
+          return data.logs || [];
+        } else {
+          const { ativo, delta } = inferStatusFromScan(scan || {});
+          pintarStatus({ ativo, fallback: true, delta });
+          return data.logs || [];
         }
-        const { ativo, delta } = inferStatusFromScan(scan || {});
-        pintarStatus({ ativo, fallback: true, delta });
       } catch {
         const { ativo, delta } = inferStatusFromScan(scan || {});
         pintarStatus({ ativo, fallback: true, delta });
+        return [];
       }
     }
 
@@ -256,8 +248,7 @@
       try {
         const resScan = await fetch("/api/scan");
         const scan = await resScan.json();
-
-        await atualizarStatusComFallback(scan);
+        const logsStatus = await atualizarStatusComFallback(scan);
 
         // === INPUT ===
         const tbodyIn = document.querySelector("#inputTable tbody");
@@ -296,11 +287,9 @@
             .forEach(lote => {
               const grupoDiv = document.createElement("div");
               grupoDiv.classList.add("lote-grupo");
-
               const header = document.createElement("div");
               header.classList.add("lote-header");
-              header.innerHTML = `<h3>📦 ${lote}</h3><button class="toggle-btn" onclick="toggleLote(this)">+</button>`;
-
+              header.innerHTML = `<h3>📦 ${lote} (${grupos[lote].length} arquivos)</h3><button class="toggle-btn" onclick="toggleLote(this)">+</button>`;
               const content = document.createElement("div");
               content.classList.add("lote-content");
               content.innerHTML = `
@@ -308,16 +297,12 @@
                   <thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead>
                   <tbody>
                     ${grupos[lote]
-                      .map(
-                        a => `
+                      .map(a => `
                         <tr>
                           <td class="mono">${a.nome}</td>
                           <td>${a.data_hora}</td>
-                          <td><a href="/api/download/${encodeURIComponent(
-                            a.nome
-                          )}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
-                        </tr>`
-                      )
+                          <td><a href="/api/download/${encodeURIComponent(a.nome)}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
+                        </tr>`)
                       .join("")}
                   </tbody>
                 </table>`;
@@ -330,34 +315,29 @@
         // === LOGS ===
         const tbodyLog = document.querySelector("#logTable tbody");
         tbodyLog.innerHTML = "";
-        const logs = scan.logs || [];
-        if (!logs.length) {
+        const logs = scan.logs?.length ? scan.logs : logsStatus;
+        if (!logs?.length) {
           tbodyLog.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
         } else {
-          logs
-            .slice()
-            .reverse()
-            .forEach(l => {
-              const statusClass = l.status === "OK" ? "ok" : "erro";
-              const tr = document.createElement("tr");
-              tr.innerHTML = `
-                <td>${l.data_hora}</td>
-                <td class="mono">${l.arquivo}</td>
-                <td>${l.tipo}</td>
-                <td>${l.total_trailer}</td>
-                <td>${l.total_processado}</td>
-                <td class="${statusClass}">${l.status}</td>
-                <td>${l.detalhe}</td>`;
-              tbodyLog.appendChild(tr);
-            });
+          logs.slice().reverse().forEach(l => {
+            const statusClass = l.status === "OK" ? "ok" : "erro";
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>${l.data_hora}</td>
+              <td class="mono">${l.arquivo}</td>
+              <td>${l.tipo}</td>
+              <td>${l.total_trailer}</td>
+              <td>${l.total_processado}</td>
+              <td class="${statusClass}">${l.status}</td>
+              <td>${l.detalhe}</td>`;
+            tbodyLog.appendChild(tr);
+          });
         }
-        document.getElementById("logCount").textContent = `📊 Exibindo ${logs.length} registro${logs.length === 1 ? "" : "s"}.`;
+        document.getElementById("logCount").textContent = `📊 Exibindo ${logs?.length || 0} registro${logs?.length === 1 ? "" : "s"}.`;
 
       } catch (err) {
         console.error("Erro ao carregar dados:", err);
-        const barra = document.getElementById("statusBar");
-        barra.className = "status-indicador desconhecido";
-        barra.innerHTML = `<span></span> ⚠️ Erro ao consultar API`;
+        document.getElementById("statusBar").innerHTML = `<span></span> ⚠️ Erro ao consultar API`;
       }
     }
 
