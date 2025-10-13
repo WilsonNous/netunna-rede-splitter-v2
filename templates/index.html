@@ -1,201 +1,91 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Netunna REDE Splitter v3</title>
   <style>
-    /* =============================
-       🌐 ESTILO GERAL
-    ============================== */
-    body {
-      font-family: "Inter", "Roboto", Arial, sans-serif;
-      background: #f6f7fb;
-      color: #333;
-      margin: 0;
-    }
-
+    /* ====== BASE ====== */
+    body { font-family: "Inter","Roboto",Arial,sans-serif; background:#f6f7fb; color:#333; margin:0; }
     header {
-      background: #ff6d00;
-      color: white;
-      padding: 18px 28px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
+      background:#ff6d00; color:#fff; padding:18px 28px;
+      box-shadow:0 2px 6px rgba(0,0,0,.15);
+      display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
     }
-
-    header h1 {
-      margin: 0;
-      font-size: 24px;
-      letter-spacing: 0.5px;
-    }
-
-    header small {
-      display: block;
-      font-size: 14px;
-      opacity: 0.9;
-      margin-top: 4px;
-    }
-
-    /* Indicador de status */
+    header h1 { margin:0; font-size:24px; letter-spacing:.3px; }
+    header small { display:block; font-size:14px; opacity:.9; margin-top:2px; }
     .status-indicador {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,0.15);
-      padding: 6px 12px;
-      border-radius: 20px;
-      font-size: 14px;
-      font-weight: 500;
+      display:flex; align-items:center; gap:8px;
+      background:rgba(255,255,255,.15); padding:6px 12px; border-radius:20px; font-size:14px; font-weight:500;
+      white-space:nowrap;
     }
-
-    .status-indicador span {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      display: inline-block;
-    }
-
-    .ativo span { background: #00ff55; }
-    .parado span { background: #ff4444; }
-    .desconhecido span { background: #ffbb00; }
+    .status-indicador span { width:10px; height:10px; border-radius:50%; display:inline-block; }
+    .ativo span { background:#00d24b; }
+    .parado span { background:#ff4444; }
+    .desconhecido span { background:#ffbb00; }
 
     main {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap: 20px;
-      padding: 25px;
+      display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap:20px; padding:25px;
     }
-
     section {
-      background: #fff;
-      border-radius: 10px;
-      padding: 20px;
-      box-shadow: 0 3px 6px rgba(0,0,0,0.08);
-      display: flex;
-      flex-direction: column;
-      transition: all 0.3s ease;
+      background:#fff; border-radius:10px; padding:20px;
+      box-shadow:0 3px 6px rgba(0,0,0,.08);
+      display:flex; flex-direction:column; transition:all .25s ease;
+      min-width:0; /* importante p/ truncar dentro do grid */
     }
-
-    section:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.12);
-    }
+    section:hover { transform:translateY(-2px); box-shadow:0 4px 10px rgba(0,0,0,.12); }
 
     h2 {
-      color: #ff6d00;
-      font-size: 18px;
-      margin-top: 0;
-      margin-bottom: 10px;
-      border-bottom: 2px solid #ff6d00;
-      padding-bottom: 5px;
+      color:#ff6d00; font-size:18px; margin:0 0 10px;
+      border-bottom:2px solid #ff6d00; padding-bottom:6px;
     }
-
     button {
-      background: #ff6d00;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 7px 12px;
-      font-size: 14px;
-      cursor: pointer;
-      margin-right: 6px;
-      transition: background 0.2s ease;
+      background:#ff6d00; color:#fff; border:none; border-radius:6px;
+      padding:7px 12px; font-size:14px; cursor:pointer; margin-right:6px; transition:background .2s ease;
     }
+    button:hover { background:#e55f00; }
 
-    button:hover {
-      background: #e55f00;
-    }
+    /* ====== TABELAS ====== */
+    table { width:100%; border-collapse:collapse; margin-top:10px; border-radius:6px; overflow:hidden; table-layout:fixed; }
+    th, td { padding:8px; border:1px solid #e0e0e0; text-align:left; font-size:14px; }
+    th { background:#ff9100; color:#fff; }
+    tr:nth-child(even) { background:#fafafa; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      border-radius: 6px;
-      overflow: hidden;
-    }
+    /* colunas controladas */
+    .col-arquivo { width:70%; }
+    .col-dt { width:30%; }
+    .ellipsis { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
-    th, td {
-      padding: 8px;
-      border: 1px solid #e0e0e0;
-      text-align: left;
-      font-size: 14px;
-    }
+    /* wrap/word-break para logs longos */
+    .wrap { white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
 
-    th {
-      background: #ff9100;
-      color: white;
-    }
-
-    tr:nth-child(even) {
-      background: #fafafa;
-    }
-
-    .ok { color: green; font-weight: bold; }
-    .erro { color: red; font-weight: bold; }
+    .ok { color:green; font-weight:bold; }
+    .erro { color:#c00; font-weight:bold; }
 
     footer {
-      text-align: center;
-      font-size: 13px;
-      color: #777;
-      padding: 15px;
-      background: #fff;
-      border-top: 1px solid #eee;
+      text-align:center; font-size:13px; color:#777; padding:15px;
+      background:#fff; border-top:1px solid #eee;
     }
 
-    /* =============================
-       📦 BLOCO DE LOTE AGRUPADO
-    ============================== */
-    .lote-grupo {
-      background: #fdfdfd;
-      border-radius: 8px;
-      margin-top: 15px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-      overflow: hidden;
-    }
-
+    /* ====== AGRUPAMENTO NSA ====== */
+    .lote-grupo { background:#fdfdfd; border-radius:8px; margin-top:15px; box-shadow:0 1px 4px rgba(0,0,0,.08); overflow:hidden; }
     .lote-header {
-      background: #fff5ef;
-      padding: 10px 15px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      border-bottom: 1px solid #ffe0c2;
+      background:#fff5ef; padding:10px 15px; display:flex; justify-content:space-between; align-items:center;
+      cursor:pointer; border-bottom:1px solid #ffe0c2;
     }
+    .lote-header h3 { color:#ff6d00; font-size:15px; margin:0; }
+    .toggle-btn { background:none; border:none; font-size:22px; color:#ff6d00; cursor:pointer; font-weight:bold; }
+    .lote-content { display:none; animation:fadeIn .25s ease-in; padding:0 10px 10px; }
 
-    .lote-header h3 {
-      color: #ff6d00;
-      font-size: 15px;
-      margin: 0;
-    }
+    /* ====== SCROLL INTERNO: evita “estourar” o grid ====== */
+    .table-wrap { max-height:280px; overflow:auto; border-radius:6px; border:1px solid #eee; }
+    .table-wrap table { margin:0; border:0; }
+    .table-wrap th, .table-wrap td { border-left:0; border-right:0; }
 
-    .toggle-btn {
-      background: none;
-      border: none;
-      font-size: 22px;
-      color: #ff6d00;
-      cursor: pointer;
-      font-weight: bold;
-    }
+    .resumo-output { font-weight:bold; color:#444; margin:10px 0 15px; }
 
-    .lote-content {
-      display: none;
-      animation: fadeIn 0.25s ease-in;
-      padding: 0 10px 10px;
-    }
-
-    .resumo-output {
-      font-weight: bold;
-      color: #444;
-      margin: 10px 0 15px;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-3px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
   </style>
 </head>
 <body>
@@ -210,19 +100,27 @@
   </header>
 
   <main>
+    <!-- INPUT -->
     <section>
       <h2>📂 Arquivos Enviados</h2>
       <div>
         <button onclick="loadFiles()">🔄 Atualizar Lista</button>
       </div>
-      <table id="inputTable">
-        <thead>
-          <tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <!-- wrapper com scroll para não “empurrar” o grid -->
+      <div class="table-wrap">
+        <table id="inputTable">
+          <thead>
+            <tr>
+              <th class="col-arquivo">Arquivo</th>
+              <th class="col-dt">Data/Hora de Envio</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
+    <!-- OUTPUT -->
     <section>
       <h2>📦 Arquivos Gerados</h2>
       <div class="resumo-output" id="outputSummary">📊 Nenhum lote processado ainda.</div>
@@ -233,22 +131,25 @@
       <div id="outputContainer"></div>
     </section>
 
+    <!-- LOGS -->
     <section>
       <h2>🧾 Histórico de Processamentos</h2>
-      <table id="logTable">
-        <thead>
-          <tr>
-            <th>Data/Hora</th>
-            <th>Arquivo</th>
-            <th>Tipo</th>
-            <th>Total Trailer</th>
-            <th>Total Processado</th>
-            <th>Status</th>
-            <th>Detalhe</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-wrap">
+        <table id="logTable">
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Arquivo</th>
+              <th>Tipo</th>
+              <th>Total Trailer</th>
+              <th>Total Processado</th>
+              <th>Status</th>
+              <th>Detalhe</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
@@ -257,34 +158,85 @@
   </footer>
 
   <script>
-    async function atualizarStatus() {
+    /* ====== UTIL ====== */
+    const HEARTBEAT_MS = 3 * 60 * 1000; // 3 minutos: janela de batimento do agente
+
+    function parseBRDateTime(s) {
+      // espera "DD/MM/AAAA HH:MM:SS"
+      if (!s || typeof s !== "string") return null;
+      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+      if (!m) return null;
+      const [_, dd, mm, yyyy, HH, MM, SS] = m;
+      return new Date(Number(yyyy), Number(mm)-1, Number(dd), Number(HH), Number(MM), Number(SS));
+    }
+
+    function formatRelativo(msDiff) {
+      if (msDiff == null) return "—";
+      const s = Math.max(0, Math.floor(msDiff/1000));
+      const m = Math.floor(s/60), r = s % 60;
+      if (m > 0) return `${m}m ${r}s`;
+      return `${r}s`;
+    }
+
+    function inferStatusFromScan(scan) {
+      // Pega o mais recente data_hora de scan.input
+      let lastTs = null;
+      if (scan && Array.isArray(scan.input) && scan.input.length > 0) {
+        for (const item of scan.input) {
+          const dt = parseBRDateTime(item.data_hora);
+          if (dt && (!lastTs || dt > lastTs)) lastTs = dt;
+        }
+      }
+      const now = new Date();
+      const delta = lastTs ? (now - lastTs) : null;
+      const ativo = delta != null && delta <= HEARTBEAT_MS;
+      return { ativo, lastTs, delta };
+    }
+
+    function pintarStatus({ativo, fallback=false, delta=null}) {
+      const barra = document.getElementById("statusBar");
+      if (ativo) {
+        barra.className = "status-indicador ativo";
+        const extra = fallback ? " (agente)" : "";
+        const info = delta!=null ? ` • Última atividade: há ${formatRelativo(delta)}` : "";
+        barra.innerHTML = `<span></span> 🟢 Ativo${extra}${info}`;
+      } else {
+        barra.className = "status-indicador parado";
+        const info = delta!=null ? ` • Última atividade: há ${formatRelativo(delta)}` : "";
+        barra.innerHTML = `<span></span> 🔴 Parado${info}`;
+      }
+    }
+
+    async function atualizarStatusComFallback(scan) {
+      // 1) tenta /api/status
       const barra = document.getElementById("statusBar");
       try {
         const res = await fetch("/api/status");
         const data = await res.json();
-
-        if (data.status === "ativo" || data.online || data.ok) {
-          barra.className = "status-indicador ativo";
-          barra.innerHTML = `<span></span> 🟢 Ativo`;
-        } else {
-          barra.className = "status-indicador parado";
-          barra.innerHTML = `<span></span> 🔴 Parado`;
+        const ok = (data.status && String(data.status).toLowerCase()==="ativo") || data.online === true || data.ok === true;
+        if (ok) { pintarStatus({ativo:true, fallback:false, delta:null}); return; }
+        // 2) fallback por atividade do agente (scan.input)
+        const {ativo, delta} = inferStatusFromScan(scan || {});
+        pintarStatus({ativo, fallback:true, delta});
+      } catch (e) {
+        // 3) erro geral -> tenta inferência
+        const {ativo, delta} = inferStatusFromScan(scan || {});
+        if (scan) pintarStatus({ativo, fallback:true, delta});
+        else {
+          barra.className = "status-indicador desconhecido";
+          barra.innerHTML = `<span></span> ⚠️ Sem resposta`;
         }
-      } catch (err) {
-        barra.className = "status-indicador desconhecido";
-        barra.innerHTML = `<span></span> ⚠️ Sem resposta`;
       }
     }
 
+    /* ====== APP ====== */
     async function loadFiles() {
       try {
-        await atualizarStatus();
-
-        const resStatus = await fetch('/api/status');
-        const data = await resStatus.json();
-
         const resScan = await fetch('/api/scan');
         const scan = await resScan.json();
+
+        // status via /api/status + fallback pelo agente
+        await atualizarStatusComFallback(scan);
 
         // === INPUT ===
         const tbodyIn = document.querySelector('#inputTable tbody');
@@ -294,7 +246,11 @@
         } else {
           scan.input.forEach(item => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${item.nome}</td><td>${item.data_hora}</td>`;
+            // célula com ellipsis + tooltip
+            tr.innerHTML = `
+              <td class="ellipsis mono" title="${item.nome}">${item.nome}</td>
+              <td class="ellipsis" title="${item.data_hora}">${item.data_hora}</td>
+            `;
             tbodyIn.appendChild(tr);
           });
         }
@@ -326,7 +282,7 @@
             const header = document.createElement("div");
             header.classList.add("lote-header");
             header.innerHTML = `
-              <h3>📦 ${lote}</h3>
+              <h3 class="ellipsis mono" title="${lote}">📦 ${lote}</h3>
               <button class="toggle-btn" onclick="toggleLote(this)">+</button>
             `;
 
@@ -335,13 +291,13 @@
             content.innerHTML = `
               <table>
                 <thead>
-                  <tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr>
+                  <tr><th class="col-arquivo">Arquivo</th><th class="col-dt">Data/Hora</th><th>Ação</th></tr>
                 </thead>
                 <tbody>
                   ${grupos[lote].map(a => `
                     <tr>
-                      <td>${a.nome}</td>
-                      <td>${a.data_hora}</td>
+                      <td class="ellipsis mono" title="${a.nome}">${a.nome}</td>
+                      <td class="ellipsis" title="${a.data_hora}">${a.data_hora}</td>
                       <td><a href="/api/download/${encodeURIComponent(a.nome)}" target="_blank" style="color:#ff6d00;text-decoration:none;">⬇️ Baixar</a></td>
                     </tr>`).join('')}
                 </tbody>
@@ -354,11 +310,33 @@
           });
         }
 
-        // === LOGS ===
-        loadLogs(data.logs);
+        // === LOGS === (wrap longo p/ não quebrar o grid)
+        const tbody = document.querySelector('#logTable tbody');
+        tbody.innerHTML = '';
+        const logs = scan.logs || []; // se preferir usar de /api/status, adapte aqui
+        if (!logs || logs.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
+        } else {
+          logs.slice().reverse().forEach(l => {
+            const tr = document.createElement('tr');
+            const statusClass = l.status === 'OK' ? 'ok' : 'erro';
+            tr.innerHTML = `
+              <td class="ellipsis" title="${l.data_hora}">${l.data_hora}</td>
+              <td class="ellipsis mono" title="${l.arquivo}">${l.arquivo}</td>
+              <td>${l.tipo}</td>
+              <td class="wrap">${l.total_trailer}</td>
+              <td class="wrap">${l.total_processado}</td>
+              <td class="${statusClass}">${l.status}</td>
+              <td class="wrap">${l.detalhe}</td>`;
+            tbody.appendChild(tr);
+          });
+        }
 
       } catch (err) {
         console.error("Erro ao carregar dados:", err);
+        const barra = document.getElementById("statusBar");
+        barra.className = "status-indicador desconhecido";
+        barra.innerHTML = `<span></span> ⚠️ Erro ao consultar API`;
       }
     }
 
@@ -389,28 +367,6 @@
         alert("Erro ao gerar os ZIPs.");
         console.error(err);
       }
-    }
-
-    function loadLogs(logs) {
-      const tbody = document.querySelector('#logTable tbody');
-      tbody.innerHTML = '';
-      if (!logs || logs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
-        return;
-      }
-      logs.slice().reverse().forEach(l => {
-        const tr = document.createElement('tr');
-        const statusClass = l.status === 'OK' ? 'ok' : 'erro';
-        tr.innerHTML = `
-          <td>${l.data_hora}</td>
-          <td>${l.arquivo}</td>
-          <td>${l.tipo}</td>
-          <td>${l.total_trailer}</td>
-          <td>${l.total_processado}</td>
-          <td class="${statusClass}">${l.status}</td>
-          <td>${l.detalhe}</td>`;
-        tbody.appendChild(tr);
-      });
     }
 
     loadFiles();
