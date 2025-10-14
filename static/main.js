@@ -161,27 +161,43 @@ async function loadFiles() {
     if (!logs?.length) {
       tbodyLog.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
     } else {
-      logs.slice().reverse().forEach(l => {
-        // Determina classe visual e integridade final
-        const integridade =
-          l.status?.toUpperCase() === "OK" ? "OK" :
-          l.status?.toUpperCase() === "FALHA" ? "FALHA" :
-          (l.status || "—");
-      
-        const statusClass = integridade === "OK" ? "ok" : "erro";
-        const detalhe = l.detalhe || (integridade === "OK" ? "Integridade confirmada" : "Verifique divergências");
-      
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${l.data_hora || "—"}</td>
-          <td class='mono'>${l.arquivo || "—"}</td>
-          <td>${l.tipo || "—"}</td>
-          <td>${l.total_trailer || 0}</td>
-          <td>${l.total_processado || 0}</td>
-          <td class='${statusClass}'>${integridade}</td>
-          <td>${detalhe}</td>`;
-        tbodyLog.appendChild(tr);
-      });
+        logs.slice().reverse().forEach(l => {
+          const integridade =
+            l.status?.toUpperCase() === "OK" ? "OK" :
+            l.status?.toUpperCase() === "FALHA" ? "FALHA" :
+            (l.status || "—");
+        
+          // Define cor e ícone
+          let statusClass = "";
+          let icone = "";
+          if (integridade === "OK") {
+            statusClass = "ok";
+            icone = "✅";
+          } else if (integridade === "FALHA") {
+            statusClass = "erro";
+            icone = "❌";
+          }
+        
+          // Monta mensagem detalhada
+          let detalhe = l.detalhe || "—";
+          if (detalhe.includes("Nenhum arquivo filho encontrado")) {
+            detalhe = `<span style="color:#c00;font-weight:600;">${detalhe}</span>`;
+          } else if (integridade === "OK") {
+            detalhe = `<span style="color:#009f3c;">${detalhe}</span>`;
+          }
+        
+          // Gera linha da tabela
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${l.data_hora || "—"}</td>
+            <td class='mono'>${l.arquivo || "—"}</td>
+            <td>${l.tipo || "—"}</td>
+            <td>${l.total_trailer || 0}</td>
+            <td>${l.total_processado || 0}</td>
+            <td class='${statusClass}'>${icone} ${integridade}</td>
+            <td>${detalhe}</td>`;
+          tbodyLog.appendChild(tr);
+        });
     }
     document.getElementById("logCount").textContent = `📊 Exibindo ${logs?.length || 0} registros.`;
 
