@@ -57,6 +57,20 @@ def upload_file():
     try:
         resultado = process_file(save_path, OUTPUT_DIR, ERROR_DIR)
         print(f"✅ Processado automaticamente: {file.filename}")
+
+        # 🔹 Validação automática após o processamento
+        tipo = resultado.get("tipo")
+        nsa = resultado.get("nsa") or "000"
+        arquivo_mae = save_path
+        if tipo in ("EEVC", "EEVD", "EEFI"):
+            try:
+                valid = processar_integridade(tipo, arquivo_mae, OUTPUT_DIR)
+                print(f"✅ Validação automática concluída: {valid.get('mensagem')}")
+            except Exception as ve:
+                print(f"⚠️ Erro na validação automática: {ve}")
+        else:
+            print(f"ℹ️ Tipo {tipo} não é elegível para validação automática.")
+
         return jsonify({
             "mensagem": f"Arquivo {file.filename} recebido e processado automaticamente.",
             "resultado": resultado
@@ -80,6 +94,21 @@ def process_endpoint():
 
     try:
         resultado = process_file(path_in, OUTPUT_DIR, ERROR_DIR)
+        print(f"✅ Processado manualmente: {filename}")
+
+        # 🔹 Validação automática também no processamento manual
+        tipo = resultado.get("tipo")
+        nsa = resultado.get("nsa") or "000"
+        arquivo_mae = path_in
+        if tipo in ("EEVC", "EEVD", "EEFI"):
+            try:
+                valid = processar_integridade(tipo, arquivo_mae, OUTPUT_DIR)
+                print(f"✅ Validação automática concluída: {valid.get('mensagem')}")
+            except Exception as ve:
+                print(f"⚠️ Erro na validação automática: {ve}")
+        else:
+            print(f"ℹ️ Tipo {tipo} não é elegível para validação automática.")
+
         return jsonify({"mensagem": "Processado", "resultado": resultado}), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
