@@ -6,6 +6,8 @@ import zipfile
 from datetime import datetime
 import pytz  # ✅ para timezone Brasil
 from splitter_core_v3 import process_file, LOG_PATH
+from modules.processador_integridade import processar_integridade
+
 
 app = Flask(__name__)
 
@@ -81,6 +83,39 @@ def process_endpoint():
         return jsonify({"mensagem": "Processado", "resultado": resultado}), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
+
+# ==============================
+# API: Validação de Integridade
+# ==============================
+@app.route("/api/validate", methods=["POST"])
+def api_validate():
+    """
+    Realiza a validação de integridade entre arquivo mãe e filhos por tipo.
+    Espera JSON: { "tipo": "EEFI", "arquivo_mae": "VENTUNO_05102025.TXT", "nsa": "037" }
+    """
+    data = request.get_json()
+    tipo = data.get("tipo")
+    arquivo_mae = data.get("arquivo_mae")
+    nsa = data.get("nsa")
+
+    if not all([tipo, arquivo_mae, nsa]):
+        return jsonify({"ok": False, "mensagem": "Campos obrigatórios: tipo, arquivo_mae, nsa"}), 400
+
+    arquivo_path = os.path.join(INPUT_DIR, arquivo_mae)
+    pasta_filhos = os.path.join(OUTPUT_DIR, f"NSA_{nsa}")
+
+    if not os.path.exists(arquivo_path):
+        return jsonify({"ok": False, "mensagem": f"Arquivo mãe não encontrado: {arquivo_mae}"}), 404
+
+    if not os.path.exists(pasta_filhos):
+        return jsonify({"ok": False, "mensagem": f"Pasta de filhos não encontrada: {pasta_filhos}"}), 404
+
+    try:
+        resultado = processar_integridade(tipo, arquivo_path, pasta_filhos)
+        return jsonify(resultado), 200
+    except Exception as e:
+        print(f"❌ Erro na validação de integridade: {e}")
+        return jsonify({"ok": False, "mensagem": str(e)}), 500
 
 # ==============================
 # API: Status / Logs
