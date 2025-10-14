@@ -227,6 +227,62 @@ async function downloadAll() {
   }
 }
 
+// ==============================
+// 🧩 Validação de Integridade
+// ==============================
+function abrirValidador() {
+  const tipo = prompt("Informe o tipo de arquivo (EEVC / EEVD / EEFI):");
+  if (!tipo) return;
+
+  const arquivoMae = prompt("Informe o nome do arquivo mãe (ex: VENTUNOFORTE_20770677_VC_05102025041.TXT):");
+  if (!arquivoMae) return;
+
+  const nsa = prompt("Informe o número do lote (ex: 041):");
+  if (!nsa) return;
+
+  // Mostra aviso de execução
+  const validateDiv = document.getElementById("validateResult");
+  if (validateDiv) {
+    validateDiv.innerHTML = `🔎 Validando <b>${arquivoMae}</b> (${tipo})...`;
+    validateDiv.style.color = "#555";
+  }
+
+  fetch("/api/validate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo, arquivo_mae: arquivoMae, nsa })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      const msg = `✅ ${d.mensagem}<br>📄 Relatório: <code>${d.relatorio}</code>`;
+      if (validateDiv) {
+        validateDiv.innerHTML = msg;
+        validateDiv.style.color = "green";
+      } else {
+        alert(msg);
+      }
+    } else {
+      const msg = `⚠️ ${d.mensagem}`;
+      if (validateDiv) {
+        validateDiv.innerHTML = msg;
+        validateDiv.style.color = "#c00";
+      } else {
+        alert(msg);
+      }
+    }
+  })
+  .catch(err => {
+    const msg = `❌ Erro ao validar: ${err}`;
+    if (validateDiv) {
+      validateDiv.innerHTML = msg;
+      validateDiv.style.color = "#c00";
+    } else {
+      alert(msg);
+    }
+  });
+}
+
 // ------------------------------
 // AUTOATUALIZAÇÃO
 // ------------------------------
