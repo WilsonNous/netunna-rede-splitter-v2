@@ -19,7 +19,7 @@ LAYOUT_POS = {
     "030": {  # Header
         "tipo": (0, 3),
         "data_emissao": (3, 11),          # DDMMAAAA
-        "sequencia": (75, 81),            # NSA (6)
+        "sequencia": (78, 81),            # NSA (6)
         "pv_grupo_matriz": (81, 90),      # PV grupo/matriz (9) -> sobrescrevemos com PV do filho
     },
 
