@@ -287,4 +287,12 @@ function abrirValidador() {
 // AUTOATUALIZAÇÃO
 // ------------------------------
 loadFiles();
-setInterval(loadFiles, 30000);
+setInterval(() => {
+  // Evita limpar o resultado de validação durante o refresh automático
+  const validateDiv = document.getElementById("validateResult");
+  const ultimoResultado = validateDiv?.innerHTML;
+  loadFiles().then(() => {
+    if (validateDiv && ultimoResultado) validateDiv.innerHTML = ultimoResultado;
+  });
+}, 30000);
+
