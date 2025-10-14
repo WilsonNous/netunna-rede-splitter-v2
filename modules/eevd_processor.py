@@ -49,9 +49,9 @@ def _extrair_data_nsa(header_parts: list[str], nome_arquivo: str):
     data_ref = "000000"
     nsa = "000"
     if len(header_parts) > 3:
-        campo_data_mov = header_parts[3].strip()
+        campo_data_mov = header_parts[2].strip()
         if re.fullmatch(r"\d{8}", campo_data_mov):
-            data_ref = f"{campo_data_mov[:2]}{campo_data_mov[2:4]}{campo_data_mov[4:6]}"
+            data_ref = f"{campo_data_mov[:2]}{campo_data_mov[2:4]}{campo_data_mov[6:8]}"
     if len(header_parts) > 7:
         campo_nsa = header_parts[7].strip()
         if campo_nsa.isdigit():
