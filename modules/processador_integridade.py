@@ -1,7 +1,7 @@
 # =============================================================
 # processador_integridade.py
 # Processador de Integridade – Netunna Splitter Framework
-# v1.1 | Unifica validações EEVC, EEVD e EEFI + Registro de Log
+# v1.2 | Corrige caso de ausência de filhos + Registro único de Log
 # =============================================================
 
 import os
@@ -46,6 +46,35 @@ def processar_integridade(tipo: str, arquivo_mae: str, pasta_filhos: str):
     # 🔹 Executa a validação genérica (módulo validator_core)
     # -----------------------------------------------------
     resultados = validar_generico(tipo, arquivo_mae, pasta_filhos, tipos_validos, relatorio_nome)
+
+    # -----------------------------------------------------
+    # 🚨 Verifica se não há resultados (sem filhos ou erro)
+    # -----------------------------------------------------
+    if not resultados:
+        status_geral = "FALHA"
+        motivo = f"Nenhum arquivo filho encontrado em: {pasta_filhos}"
+
+        try:
+            log_result(
+                os.path.basename(arquivo_mae),
+                tipo,
+                0,
+                0,
+                status_geral,
+                motivo
+            )
+            logger.warning(f"⚠️ {motivo}")
+        except Exception as e:
+            logger.error(f"❌ Falha ao registrar log de ausência de filhos: {e}")
+
+        return {
+            "ok": False,
+            "mensagem": motivo,
+            "status": status_geral,
+            "detalhe": motivo,
+            "arquivo": os.path.basename(arquivo_mae),
+            "tipo": tipo
+        }
 
     # -----------------------------------------------------
     # 🔍 Avalia integridade geral
