@@ -41,7 +41,7 @@
     }
 
     main {
-      display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      display:flex; flex-direction:column;
       gap:20px; padding:25px;
     }
     section {
@@ -67,6 +67,7 @@
       box-shadow:0 2px 2px rgba(0,0,0,0.05);
     }
     tr:nth-child(even) { background:#fafafa; }
+
     .ok { color:green; font-weight:bold; }
     .erro { color:#c00; font-weight:bold; }
     .mono { font-family: ui-monospace, Consolas, "Courier New", monospace; }
@@ -90,65 +91,15 @@
 
     .table-count { font-size:13px; color:#555; margin-top:6px; text-align:right; font-style:italic; }
 
-    .lote-grupo {
-      background:#fdfdfd; border-radius:8px; margin-top:15px;
-      box-shadow:0 1px 4px rgba(0,0,0,.08);
-      overflow:hidden; transition:background .3s ease;
-    }
-    .lote-grupo.open { background:#fff9f3; }
-    .lote-header {
-      background:#fff5ef; padding:8px 12px;
-      display:flex; justify-content:space-between; align-items:center;
-      cursor:pointer; border-bottom:1px solid #ffe0c2;
-    }
-    .lote-header h3 {
-      color:#ff6d00; font-size:14px; margin:0; font-weight:600;
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-      display:flex; align-items:center; gap:6px;
-    }
-    .badge { background:#ff9100; color:#fff; font-size:11px; padding:2px 6px; border-radius:10px; }
-    .toggle-btn { background:none; border:none; font-size:20px; color:#ff6d00; cursor:pointer; font-weight:bold; transition:transform .2s ease; }
-    .toggle-btn:hover { transform:scale(1.2); }
-    .lote-content { display:block; overflow:hidden; max-height:0; opacity:0; transition:max-height .4s ease, opacity .4s ease; padding:0 10px; }
-    .lote-content.open { opacity:1; max-height:260px; overflow:auto; padding-bottom:10px; }
-    .resumo-output { font-weight:bold; color:#444; margin:10px 0 15px; }
-
-    .versao {
-      position:absolute; right:12px; bottom:8px;
-      font-size:11px; color:#aaa; opacity:.6; font-style:italic;
-    }
-
-    /* === Ednna iframe === */
-    #ednna-frame {
-      position: fixed;
-      bottom: 0;
-      right: 0;
-      width: 360px;
-      height: 520px;
-      border: none;
-      background: transparent;
-      z-index: 9999;
-    }
-    #validateResult {
-      border-left: 4px solid #ff6d00;
-      padding: 6px 10px;
-      background: #fff8f3;
-      border-radius: 4px;
-      font-family: "Inter", sans-serif;
-      transition: all 0.3s ease;
-    }
-    .ok { color: #009f3c; font-weight: bold; }
-    .erro { color: #d32f2f; font-weight: bold; }
-
     /* === Logs do Agente === */
     #agentLogs {
-      background: #000;
-      color: #0f0;
-      border: 1px solid #333;
-      border-radius: 6px;
-      max-height: 240px;
-      overflow-y: auto;
-      box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
+      background:#000;
+      color:#00ff6a;
+      border:1px solid #333;
+      border-radius:6px;
+      max-height:240px;
+      overflow-y:auto;
+      box-shadow:inset 0 0 8px rgba(0,0,0,0.4);
       display:none;
       margin-top:10px;
     }
@@ -172,24 +123,30 @@
   </header>
 
   <main>
+    <!-- 🔹 Seção do Agente Netunna -->
     <section>
-      <h2>📂 Arquivos Enviados</h2>
+      <h2>🤖 Agente Netunna — Controle e Monitoramento</h2>
       <div>
-        <button onclick="loadFiles()">🔄 Atualizar Lista</button>
         <button onclick="executarAgente()">⚙️ Executar Agente</button>
         <button onclick="verLogsAgente()">🧠 Ver Logs do Agente</button>
+        <button onclick="loadFiles()">📜 Atualizar Status</button>
       </div>
 
       <div id="agentLogs" class="scroll-box">
         <pre id="agentLogContent"></pre>
       </div>
+    </section>
 
+    <!-- 🔹 Arquivos Enviados -->
+    <section>
+      <h2>📂 Arquivos Enviados</h2>
       <div class="scroll-box">
         <table id="inputTable"><thead><tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr></thead><tbody></tbody></table>
       </div>
       <div id="inputCount" class="table-count"></div>
     </section>
 
+    <!-- 🔹 Arquivos Gerados -->
     <section>
       <h2>📦 Arquivos Gerados</h2>
       <div class="resumo-output" id="outputSummary">📊 Nenhum lote processado ainda.</div>
@@ -203,6 +160,7 @@
       <div id="outputContainer"></div>
     </section>
 
+    <!-- 🔹 Histórico -->
     <section>
       <h2>🧾 Histórico de Processamentos</h2>
       <div class="scroll-box">
@@ -228,21 +186,23 @@
   <footer>
     © Netunna Automations — REDE Splitter v5.3 | Atualização automática a cada 30s
     <div id="clock">🕒 <span id="currentTime"></span> • Horário de Brasília (BRT)</div>
-    <span class="versao">Build Stable</span>
   </footer>
 
-  <!-- === Ednna Assistente via IFRAME === -->
   <iframe id="ednna-frame" src="/static/ednna.html" title="Assistente Ednna"></iframe>
 
-  <!-- ===========================
-       🔧 Script do Agente e Download
-       =========================== -->
   <script>
     async function executarAgente() {
       try {
         const res = await fetch("/api/agente/run", { method: "POST" });
-        const data = await res.json();
-        alert(data.msg || "Agente iniciado com sucesso!");
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          alert(data.msg || "✅ Agente iniciado com sucesso!");
+        } else {
+          const text = await res.text();
+          console.warn("Resposta não JSON:", text);
+          alert("⚠️ O servidor retornou uma resposta inesperada.");
+        }
         verLogsAgente();
       } catch (err) {
         alert("Erro ao iniciar o agente: " + err);
