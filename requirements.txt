@@ -1,4 +1,17 @@
+# ===============================
+# Netunna REDE Splitter + Agente
+# Ambiente Azure App Service
+# ===============================
+
+# --- Core Web ---
 Flask==3.0.3
 gunicorn==23.0.0
+
+# --- Utilitários e comunicação ---
 requests==2.32.3
+python-dotenv==1.0.1
 pytz==2024.1
+
+# --- Agente e automações ---
+watchdog==4.0.1
+azure-storage-blob==12.19.1
