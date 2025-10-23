@@ -11,18 +11,31 @@ from modules.processador_integridade import processar_integridade
 
 app = Flask(__name__)
 
-# Diretórios no ambiente Azure (montados via Path Mapping)
-INPUT_DIR = "/home/input"
-OUTPUT_DIR = "/home/output"
-ERROR_DIR = "/home/erro"
-LOG_DIR = "/home/logs"
+# ======================================================
+# 📁 Diretórios de operação dinâmicos (compatíveis com Azure)
+# ======================================================
+
+# Detecta base do projeto
+BASE_DIR = os.getenv("SPLITTER_BASE_DIR", os.getcwd())
+
+# Define os diretórios principais
+INPUT_DIR = os.path.join(BASE_DIR, "input")
+OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+ERROR_DIR = os.path.join(BASE_DIR, "erro")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
 
 # Caminho completo do CSV de logs
 LOG_PATH = os.path.join(LOG_DIR, "operacoes.csv")
 
-# Garante que todas as pastas existam (inclusive na primeira execução)
+# Garante que todas as pastas existam
 for d in [INPUT_DIR, OUTPUT_DIR, ERROR_DIR, LOG_DIR]:
     os.makedirs(d, exist_ok=True)
+
+print("📂 Diretórios configurados:")
+print(f"   INPUT_DIR  = {INPUT_DIR}")
+print(f"   OUTPUT_DIR = {OUTPUT_DIR}")
+print(f"   ERROR_DIR  = {ERROR_DIR}")
+print(f"   LOG_DIR    = {LOG_DIR}")
 
 # ✅ Timezone Brasil
 TZ_BR = pytz.timezone("America/Sao_Paulo")
