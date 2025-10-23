@@ -161,43 +161,38 @@ async function loadFiles() {
     if (!logs?.length) {
       tbodyLog.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
     } else {
-        logs.slice().reverse().forEach(l => {
-          const integridade =
-            l.status?.toUpperCase() === "OK" ? "OK" :
-            l.status?.toUpperCase() === "FALHA" ? "FALHA" :
-            (l.status || "—");
-        
-          // Define cor e ícone
-          let statusClass = "";
-          let icone = "";
-          if (integridade === "OK") {
-            statusClass = "ok";
-            icone = "✅";
-          } else if (integridade === "FALHA") {
-            statusClass = "erro";
-            icone = "❌";
-          }
-        
-          // Monta mensagem detalhada
-          let detalhe = l.detalhe || "—";
-          if (detalhe.includes("Nenhum arquivo filho encontrado")) {
-            detalhe = `<span style="color:#c00;font-weight:600;">${detalhe}</span>`;
-          } else if (integridade === "OK") {
-            detalhe = `<span style="color:#009f3c;">${detalhe}</span>`;
-          }
-        
-          // Gera linha da tabela
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${l.data_hora || "—"}</td>
-            <td class='mono'>${l.arquivo || "—"}</td>
-            <td>${l.tipo || "—"}</td>
-            <td>${l.total_trailer || 0}</td>
-            <td>${l.total_processado || 0}</td>
-            <td class='${statusClass}'>${icone} ${integridade}</td>
-            <td>${detalhe}</td>`;
-          tbodyLog.appendChild(tr);
-        });
+      logs.slice().reverse().forEach(l => {
+        const integridade =
+          l.status?.toUpperCase() === "OK" ? "OK" :
+          l.status?.toUpperCase() === "FALHA" ? "FALHA" :
+          (l.status || "—");
+
+        let statusClass = "";
+        let icone = "";
+        if (integridade === "OK") {
+          statusClass = "ok"; icone = "✅";
+        } else if (integridade === "FALHA") {
+          statusClass = "erro"; icone = "❌";
+        }
+
+        let detalhe = l.detalhe || "—";
+        if (detalhe.includes("Nenhum arquivo filho encontrado")) {
+          detalhe = `<span style="color:#c00;font-weight:600;">${detalhe}</span>`;
+        } else if (integridade === "OK") {
+          detalhe = `<span style="color:#009f3c;">${detalhe}</span>`;
+        }
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${l.data_hora || "—"}</td>
+          <td class='mono'>${l.arquivo || "—"}</td>
+          <td>${l.tipo || "—"}</td>
+          <td>${l.total_trailer || 0}</td>
+          <td>${l.total_processado || 0}</td>
+          <td class='${statusClass}'>${icone} ${integridade}</td>
+          <td>${detalhe}</td>`;
+        tbodyLog.appendChild(tr);
+      });
     }
     document.getElementById("logCount").textContent = `📊 Exibindo ${logs?.length || 0} registros.`;
 
@@ -264,7 +259,6 @@ function abrirValidador() {
   const nsa = prompt("Informe o número do lote (ex: 041):");
   if (!nsa) return;
 
-  // Mostra aviso de execução
   const validateDiv = document.getElementById("validateResult");
   if (validateDiv) {
     validateDiv.innerHTML = `🔎 Validando <b>${arquivoMae}</b> (${tipo})...`;
@@ -278,32 +272,20 @@ function abrirValidador() {
   })
   .then(r => r.json())
   .then(d => {
-    if (d.ok) {
-      const msg = `✅ ${d.mensagem}<br>📄 Relatório: <code>${d.relatorio}</code>`;
-      if (validateDiv) {
-        validateDiv.innerHTML = msg;
-        validateDiv.style.color = "green";
-      } else {
-        alert(msg);
-      }
-    } else {
-      const msg = `⚠️ ${d.mensagem}`;
-      if (validateDiv) {
-        validateDiv.innerHTML = msg;
-        validateDiv.style.color = "#c00";
-      } else {
-        alert(msg);
-      }
-    }
+    const msg = d.ok
+      ? `✅ ${d.mensagem}<br>📄 Relatório: <code>${d.relatorio}</code>`
+      : `⚠️ ${d.mensagem}`;
+    if (validateDiv) {
+      validateDiv.innerHTML = msg;
+      validateDiv.style.color = d.ok ? "green" : "#c00";
+    } else alert(msg);
   })
   .catch(err => {
     const msg = `❌ Erro ao validar: ${err}`;
     if (validateDiv) {
       validateDiv.innerHTML = msg;
       validateDiv.style.color = "#c00";
-    } else {
-      alert(msg);
-    }
+    } else alert(msg);
   });
 }
 
@@ -312,7 +294,6 @@ function abrirValidador() {
 // ------------------------------
 loadFiles();
 setInterval(() => {
-  // Evita limpar o resultado de validação durante o refresh automático
   const validateDiv = document.getElementById("validateResult");
   const ultimoResultado = validateDiv?.innerHTML;
   loadFiles().then(() => {
@@ -320,3 +301,44 @@ setInterval(() => {
   });
 }, 30000);
 
+// ==============================
+// ⚙️ Integração com Agente Netunna
+// ==============================
+async function executarAgente() {
+  try {
+    const res = await fetch("/api/agente/run", { method: "POST" });
+    const data = await res.json();
+    alert(data.msg || "Agente iniciado com sucesso!");
+    verLogsAgente();
+  } catch (err) {
+    alert("Erro ao iniciar o agente: " + err);
+  }
+}
+
+let logsInterval = null;
+
+function verLogsAgente() {
+  const box = document.getElementById("agentLogs");
+  const content = document.getElementById("agentLogContent");
+
+  if (!box) return;
+
+  if (box.style.display === "none" || box.style.display === "") {
+    box.style.display = "block";
+    logsInterval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/agente/status");
+        const data = await res.json();
+        if (data.logs) {
+          content.textContent = data.logs.join("\n");
+          content.scrollTop = content.scrollHeight;
+        }
+      } catch (e) {
+        console.warn("Erro ao buscar logs do agente:", e);
+      }
+    }, 4000);
+  } else {
+    box.style.display = "none";
+    clearInterval(logsInterval);
+  }
+}
