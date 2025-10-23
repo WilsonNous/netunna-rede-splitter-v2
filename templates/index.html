@@ -139,6 +139,26 @@
     }
     .ok { color: #009f3c; font-weight: bold; }
     .erro { color: #d32f2f; font-weight: bold; }
+
+    /* === Logs do Agente === */
+    #agentLogs {
+      background: #000;
+      color: #0f0;
+      border: 1px solid #333;
+      border-radius: 6px;
+      max-height: 240px;
+      overflow-y: auto;
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.4);
+      display:none;
+      margin-top:10px;
+    }
+    #agentLogs pre {
+      font-size:12px;
+      font-family:monospace;
+      margin:0;
+      padding:8px;
+      line-height:1.3;
+    }
   </style>
 </head>
 
@@ -154,7 +174,16 @@
   <main>
     <section>
       <h2>📂 Arquivos Enviados</h2>
-      <div><button onclick="loadFiles()">🔄 Atualizar Lista</button></div>
+      <div>
+        <button onclick="loadFiles()">🔄 Atualizar Lista</button>
+        <button onclick="executarAgente()">⚙️ Executar Agente</button>
+        <button onclick="verLogsAgente()">🧠 Ver Logs do Agente</button>
+      </div>
+
+      <div id="agentLogs" class="scroll-box">
+        <pre id="agentLogContent"></pre>
+      </div>
+
       <div class="scroll-box">
         <table id="inputTable"><thead><tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr></thead><tbody></tbody></table>
       </div>
@@ -203,6 +232,45 @@
 
   <!-- === Ednna Assistente via IFRAME === -->
   <iframe id="ednna-frame" src="/static/ednna.html" title="Assistente Ednna"></iframe>
+
+  <script>
+    async function executarAgente() {
+      try {
+        const res = await fetch("/api/agente/run", { method: "POST" });
+        const data = await res.json();
+        alert(data.msg || "Agente iniciado com sucesso!");
+        verLogsAgente();
+      } catch (err) {
+        alert("Erro ao iniciar o agente: " + err);
+      }
+    }
+
+    let logsInterval = null;
+
+    function verLogsAgente() {
+      const box = document.getElementById("agentLogs");
+      const content = document.getElementById("agentLogContent");
+
+      if (box.style.display === "none" || box.style.display === "") {
+        box.style.display = "block";
+        logsInterval = setInterval(async () => {
+          try {
+            const res = await fetch("/api/agente/status");
+            const data = await res.json();
+            if (data.logs) {
+              content.textContent = data.logs.join("\n");
+              content.scrollTop = content.scrollHeight;
+            }
+          } catch (e) {
+            console.warn("Erro ao buscar logs do agente:", e);
+          }
+        }, 4000);
+      } else {
+        box.style.display = "none";
+        clearInterval(logsInterval);
+      }
+    }
+  </script>
 
   <script src="/static/main.js"></script>
 </body>
