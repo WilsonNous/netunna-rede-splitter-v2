@@ -1,5 +1,0 @@
-requests
-flask
-python-dotenv
-watchdog
-azure-storage-blob
