@@ -1,42 +1,40 @@
-from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
 import os, sys
-import csv
-import io
-import zipfile
+from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
+import csv, io, zipfile
 from datetime import datetime
-import pytz  # ✅ para timezone Brasil
-from splitter_core_v3 import process_file, LOG_PATH
+import pytz
+
+# --- Ajuste de path para o Azure ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(BASE_DIR)
+
+# --- Imports locais ---
+try:
+    from splitter_core_v3 import process_file, LOG_PATH
+except ModuleNotFoundError:
+    from modules.splitter_core_v3 import process_file, LOG_PATH
+
 from modules.processador_integridade import processar_integridade
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# --- Inicialização do Flask ---
+app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
 
-app = Flask(__name__)
-
-# ======================================================
-# 📁 Diretórios de operação dinâmicos (compatíveis com Azure)
-# ======================================================
-
-# Detecta base do projeto
-BASE_DIR = os.getenv("SPLITTER_BASE_DIR", os.getcwd())
-
-# Define os diretórios principais
-INPUT_DIR = os.path.join(BASE_DIR, "input")
+# --- Diretórios ---
+INPUT_DIR  = os.path.join(BASE_DIR, "input")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-ERROR_DIR = os.path.join(BASE_DIR, "erro")
-LOG_DIR = os.path.join(BASE_DIR, "logs")
-
-# Caminho completo do CSV de logs
-LOG_PATH = os.path.join(LOG_DIR, "operacoes.csv")
-
-# Garante que todas as pastas existam
+ERROR_DIR  = os.path.join(BASE_DIR, "erro")
+LOG_DIR    = os.path.join(BASE_DIR, "logs")
 for d in [INPUT_DIR, OUTPUT_DIR, ERROR_DIR, LOG_DIR]:
     os.makedirs(d, exist_ok=True)
 
 print("📂 Diretórios configurados:")
-print(f"   INPUT_DIR  = {INPUT_DIR}")
-print(f"   OUTPUT_DIR = {OUTPUT_DIR}")
-print(f"   ERROR_DIR  = {ERROR_DIR}")
-print(f"   LOG_DIR    = {LOG_DIR}")
+for name, path in {
+    "INPUT_DIR": INPUT_DIR,
+    "OUTPUT_DIR": OUTPUT_DIR,
+    "ERROR_DIR": ERROR_DIR,
+    "LOG_DIR": LOG_DIR,
+}.items():
+    print(f"   {name} = {path}")
 
 # ✅ Timezone Brasil
 TZ_BR = pytz.timezone("America/Sao_Paulo")
