@@ -50,6 +50,9 @@
       display:flex; flex-direction:column;
       min-width:0; overflow:hidden;
     }
+    section + section { margin-top:8px; }
+    section.agente + section { margin-top:20px; }
+
     h2 { color:#ff6d00; font-size:18px; margin:0 0 10px; border-bottom:2px solid #ff6d00; padding-bottom:6px; }
 
     button {
@@ -91,6 +94,23 @@
 
     .table-count { font-size:13px; color:#555; margin-top:6px; text-align:right; font-style:italic; }
 
+    /* === 🔹 Caixa do Agente Netunna === */
+    section.agente {
+      border-left:5px solid #00bfa5;
+      background:#f4fffc;
+      box-shadow:0 3px 6px rgba(0,191,165,0.2);
+    }
+    section.agente h2 {
+      color:#00796b;
+      border-bottom:2px solid #00bfa5;
+    }
+    section.agente button {
+      background:#00bfa5;
+    }
+    section.agente button:hover {
+      background:#00997a;
+    }
+
     /* === Logs do Agente === */
     #agentLogs {
       background:#000;
@@ -124,8 +144,11 @@
 
   <main>
     <!-- 🔹 Seção do Agente Netunna -->
-    <section>
-      <h2>🤖 Agente Netunna — Controle e Monitoramento</h2>
+    <section class="agente">
+      <h2>🤖 Agente Netunna — Execução Automática e Status</h2>
+      <small style="color:#00796b; margin-bottom:10px;">
+        Gerencia a execução automática do Splitter, monitorando uploads e processamento.
+      </small>
       <div>
         <button onclick="executarAgente()">⚙️ Executar Agente</button>
         <button onclick="verLogsAgente()">🧠 Ver Logs do Agente</button>
