@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
-import os
+import os, sys
 import csv
 import io
 import zipfile
@@ -8,6 +8,7 @@ import pytz  # ✅ para timezone Brasil
 from splitter_core_v3 import process_file, LOG_PATH
 from modules.processador_integridade import processar_integridade
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 app = Flask(__name__)
 
