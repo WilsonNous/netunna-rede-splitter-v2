@@ -11,12 +11,16 @@ from modules.processador_integridade import processar_integridade
 
 app = Flask(__name__)
 
-# Diretórios padrão
-INPUT_DIR = "input"
-OUTPUT_DIR = "output"
-ERROR_DIR = "erro"
-LOG_DIR = "logs"
+# Diretórios no ambiente Azure (montados via Path Mapping)
+INPUT_DIR = "/home/input"
+OUTPUT_DIR = "/home/output"
+ERROR_DIR = "/home/erro"
+LOG_DIR = "/home/logs"
 
+# Caminho completo do CSV de logs
+LOG_PATH = os.path.join(LOG_DIR, "operacoes.csv")
+
+# Garante que todas as pastas existam (inclusive na primeira execução)
 for d in [INPUT_DIR, OUTPUT_DIR, ERROR_DIR, LOG_DIR]:
     os.makedirs(d, exist_ok=True)
 
