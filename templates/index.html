@@ -196,6 +196,7 @@
       <div>
         <button onclick="loadFiles()">🔄 Atualizar</button>
         <button onclick="downloadAll()">⬇️ Baixar ZIPs por NSA</button>
+        <button onclick="baixarArquivosProcessados()">⬇️ Baixar Arquivos Processados</button>
         <button onclick="abrirValidador()">🧩 Validar Integridade</button>
       </div>
       <div id="validateResult" style="margin:8px 0; font-size:13px; color:#444;"></div>
@@ -233,6 +234,9 @@
   <!-- === Ednna Assistente via IFRAME === -->
   <iframe id="ednna-frame" src="/static/ednna.html" title="Assistente Ednna"></iframe>
 
+  <!-- ===========================
+       🔧 Script do Agente e Download
+       =========================== -->
   <script>
     async function executarAgente() {
       try {
@@ -242,6 +246,29 @@
         verLogsAgente();
       } catch (err) {
         alert("Erro ao iniciar o agente: " + err);
+      }
+    }
+
+    async function baixarArquivosProcessados() {
+      try {
+        const resp = await fetch("/api/agente/download");
+        if (!resp.ok) {
+          alert("⚠️ Erro ao gerar ZIP: " + resp.statusText);
+          return;
+        }
+        const blob = await resp.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `netunna_output_${new Date().toISOString().slice(0,19).replace(/[:T]/g, "-")}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        alert("📦 Arquivos processados baixados com sucesso!");
+      } catch (err) {
+        console.error("Erro ao baixar ZIP:", err);
+        alert("❌ Erro ao baixar arquivos: " + err);
       }
     }
 
