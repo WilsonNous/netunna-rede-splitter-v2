@@ -2,7 +2,7 @@ import os
 import time
 import requests
 import shutil
-from utils import log
+from agente.utils import log
 
 UPLOAD_URL = os.getenv("SPLITTER_API_UPLOAD")
 
