@@ -6,9 +6,9 @@ Execução manual: Upload → Processamento → Download
 import os
 import time
 from dotenv import load_dotenv
-from uploader import upload_file
-from downloader import baixar_output
-from utils import log, tempo, extrair_nsa, ensure_dirs
+from agente.uploader import upload_file
+from agente.downloader import baixar_output
+from agente.utils import log, tempo, extrair_nsa, ensure_dirs
 
 load_dotenv()
 ensure_dirs()
