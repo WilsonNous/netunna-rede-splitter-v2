@@ -19,6 +19,10 @@ from modules.processador_integridade import processar_integridade
 # --- Inicialização do Flask ---
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
 
+# ✅ Registrar Blueprint do Agente (depois de criar o app)
+from modules.agente_routes import agente_bp
+app.register_blueprint(agente_bp, url_prefix="/api/agente")
+
 # --- Diretórios ---
 INPUT_DIR  = os.path.join(BASE_DIR, "input")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
