@@ -119,6 +119,26 @@
       line-height:1.3;
     }
 
+    /* === Status do Upload Rolável === */
+    #uploadStatus {
+      max-height:180px;
+      overflow-y:auto;
+      background:#f9fafb;
+      border:1px solid #ddd;
+      border-radius:6px;
+      padding:8px 10px;
+      font-family:"JetBrains Mono", monospace;
+      font-size:13px;
+      color:#333;
+      white-space:pre-line;
+      line-height:1.5;
+    }
+    #uploadStatus::-webkit-scrollbar { width:8px; }
+    #uploadStatus::-webkit-scrollbar-thumb {
+      background-color:#ccc;
+      border-radius:4px;
+    }
+
     /* === Lotes (NSA) === */
     .lote-grupo {
       border:1px solid #eee;
@@ -184,62 +204,14 @@
           <input type="file" id="uploadInput" multiple style="display:none;" />
           <button id="btnUpload" class="btn">📤 Enviar para Agente</button>
           <progress id="uploadProgress" value="0" max="100" style="display:none; width:90%; height:8px; margin-top:8px;"></progress>
-          <p id="uploadStatus" style="color:#666; font-size:0.9em; margin-top:5px;">Nenhum upload em andamento.</p>
+          <div id="uploadStatus">Nenhum upload em andamento.</div>
         </div>
       </div>
       <div id="agentLogs" class="scroll-box">
         <pre id="agentLogContent"></pre>
       </div>
     </section>
-
-    <!-- 🔹 Arquivos Enviados -->
-    <section>
-      <h2>📂 Arquivos Enviados</h2>
-      <div class="scroll-box">
-        <table id="inputTable"><thead><tr><th>Arquivo</th><th>Data/Hora de Envio</th></tr></thead><tbody></tbody></table>
-      </div>
-      <div id="inputCount" class="table-count"></div>
-    </section>
-
-    <!-- 🔹 Arquivos Gerados -->
-    <section>
-      <h2>📦 Arquivos Gerados</h2>
-      <div class="resumo-output" id="outputSummary">📊 Nenhum lote processado ainda.</div>
-      <div>
-        <button onclick="loadFiles()">🔄 Atualizar</button>
-        <button onclick="downloadAll()">⬇️ Baixar ZIPs por NSA</button>
-        <button onclick="baixarArquivosProcessados()">⬇️ Baixar Arquivos Processados</button>
-        <button onclick="abrirValidador()">🧩 Validar Integridade</button>
-      </div>
-      <div style="margin:8px 0;">
-        <button onclick="toggleTodos(true)">🔼 Expandir Todos</button>
-        <button onclick="toggleTodos(false)">🔽 Recolher Todos</button>
-      </div>
-      <div id="validateResult" style="margin:8px 0; font-size:13px; color:#444;"></div>
-      <div id="outputContainer"></div>
-    </section>
-
-    <!-- 🔹 Histórico -->
-    <section>
-      <h2>🧾 Histórico de Processamentos</h2>
-      <div class="scroll-box">
-        <table id="logTable">
-          <thead>
-            <tr>
-              <th>Data/Hora</th>
-              <th>Arquivo</th>
-              <th>Tipo</th>
-              <th>Total Trailer</th>
-              <th>Total Processado</th>
-              <th>Integridade</th>
-              <th>Detalhe</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div id="logCount" class="table-count"></div>
-    </section>
+    ...
   </main>
 
   <footer>
