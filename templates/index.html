@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Netunna REDE Splitter v5.3</title>
+  <title>🧩 Netunna REDE Splitter v5.3</title>
   <style>
     body {
       font-family: "Inter","Roboto",Arial,sans-serif;
@@ -75,7 +75,7 @@
 
     footer {
       text-align:center; font-size:13px; color:#777; padding:15px 10px 25px;
-      background:#fff; border-top:1px solid #eee; position:relative;
+      background:#fff; border-top:1px solid #eee;
     }
     #clock { font-weight:500; color:#444; font-size:13px; margin-top:6px; }
 
@@ -86,7 +86,7 @@
 
     .table-count { font-size:13px; color:#555; margin-top:6px; text-align:right; font-style:italic; }
 
-    /* === 🔹 Caixa do Agente Netunna === */
+    /* === Caixa do Agente === */
     section.agente {
       border-left:5px solid #00bfa5;
       background:#f4fffc;
@@ -99,62 +99,32 @@
     section.agente button { background:#00bfa5; }
     section.agente button:hover { background:#00997a; }
 
-    /* === Logs do Agente === */
     #agentLogs {
-      background:#000;
-      color:#00ff6a;
-      border:1px solid #333;
-      border-radius:6px;
-      max-height:240px;
-      overflow-y:auto;
-      box-shadow:inset 0 0 8px rgba(0,0,0,0.4);
-      display:none;
-      margin-top:10px;
+      background:#000; color:#00ff6a; border:1px solid #333; border-radius:6px;
+      max-height:240px; overflow-y:auto; display:none;
+      box-shadow:inset 0 0 8px rgba(0,0,0,0.4); margin-top:10px;
     }
-    #agentLogs pre {
-      font-size:12px;
-      font-family:monospace;
-      margin:0;
-      padding:8px;
-      line-height:1.3;
-    }
+    #agentLogs pre { font-size:12px; font-family:monospace; margin:0; padding:8px; line-height:1.3; }
 
-    /* === Status do Upload Rolável === */
+    /* === Status do Upload === */
     #uploadStatus {
-      max-height:180px;
-      overflow-y:auto;
-      background:#f9fafb;
-      border:1px solid #ddd;
-      border-radius:6px;
-      padding:8px 10px;
+      max-height:180px; overflow-y:auto;
+      background:#f9fafb; border:1px solid #ddd;
+      border-radius:6px; padding:8px 10px;
       font-family:"JetBrains Mono", monospace;
-      font-size:13px;
-      color:#333;
-      white-space:pre-line;
-      line-height:1.5;
+      font-size:13px; color:#333; white-space:pre-line; line-height:1.5;
     }
     #uploadStatus::-webkit-scrollbar { width:8px; }
-    #uploadStatus::-webkit-scrollbar-thumb {
-      background-color:#ccc;
-      border-radius:4px;
-    }
+    #uploadStatus::-webkit-scrollbar-thumb { background-color:#ccc; border-radius:4px; }
 
-    /* === Lotes (NSA) === */
+    /* === Lotes === */
     .lote-grupo {
-      border:1px solid #eee;
-      border-radius:8px;
-      margin-top:8px;
-      overflow:hidden;
+      border:1px solid #eee; border-radius:8px; margin-top:8px; overflow:hidden;
       transition: all 0.2s ease-in-out;
     }
     .lote-header {
-      background:#fff7f0;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      padding:6px 12px;
-      cursor:pointer;
-      border-bottom:1px solid #ffe0b2;
+      background:#fff7f0; display:flex; justify-content:space-between;
+      align-items:center; padding:6px 12px; cursor:pointer; border-bottom:1px solid #ffe0b2;
     }
     .lote-header h3 { margin:0; font-size:15px; color:#ff6d00; }
     .lote-header .badge {
@@ -163,15 +133,10 @@
     }
     .toggle-btn {
       background:none; border:none; color:#ff6d00;
-      font-size:20px; font-weight:bold; cursor:pointer;
-      transition:transform 0.2s;
+      font-size:20px; font-weight:bold; cursor:pointer; transition:transform 0.2s;
     }
     .toggle-btn:hover { transform:scale(1.2); }
-    .lote-content {
-      max-height:0; overflow:hidden;
-      transition:max-height 0.25s ease-in-out;
-      background:#fff;
-    }
+    .lote-content { max-height:0; overflow:hidden; transition:max-height 0.25s ease-in-out; background:#fff; }
     .lote-content.open { max-height:600px; }
   </style>
 </head>
@@ -186,7 +151,7 @@
   </header>
 
   <main>
-    <!-- 🔹 Seção do Agente Netunna -->
+    <!-- 🔹 AGENTE NETUNNA -->
     <section class="agente">
       <h2>🤖 Agente Netunna — Execução Automática e Status</h2>
       <small style="color:#00796b; margin-bottom:10px;">
@@ -198,6 +163,7 @@
         <button onclick="loadFiles()">📜 Atualizar Status</button>
         <button onclick="resetAgente()">🧹 Limpar Cache</button>
       </div>
+
       <div class="agente-controls">
         <h3>📤 Upload via Agente</h3>
         <div id="agenteUploadBox" style="margin-top:8px;">
@@ -207,11 +173,59 @@
           <div id="uploadStatus">Nenhum upload em andamento.</div>
         </div>
       </div>
+
       <div id="agentLogs" class="scroll-box">
         <pre id="agentLogContent"></pre>
       </div>
     </section>
-    ...
+
+    <!-- 🔹 INPUT FILES -->
+    <section id="inputSection">
+      <h2>📥 Arquivos de Entrada</h2>
+      <div class="scroll-box">
+        <table id="inputTable">
+          <thead><tr><th>Arquivo</th><th>Data/Hora</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="inputCount" class="table-count"></div>
+    </section>
+
+    <!-- 🔹 OUTPUT FILES -->
+    <section id="outputSection">
+      <h2>📦 Arquivos Gerados (Filhos)</h2>
+      <div id="outputSummary" class="table-count"></div>
+      <div id="outputContainer"></div>
+      <div style="margin-top:10px;">
+        <button onclick="downloadAll()">⬇️ Baixar Todos (ZIP)</button>
+        <button onclick="abrirValidador()">🔍 Validar Integridade</button>
+        <button onclick="toggleTodos(true)">🔼 Expandir Todos</button>
+        <button onclick="toggleTodos(false)">🔽 Recolher Todos</button>
+      </div>
+    </section>
+
+    <!-- 🔹 LOGS -->
+    <section id="logsSection">
+      <h2>📑 Logs de Processamento</h2>
+      <div class="scroll-box">
+        <table id="logTable">
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Arquivo</th>
+              <th>Tipo</th>
+              <th>Total Trailer</th>
+              <th>Total Processado</th>
+              <th>Status</th>
+              <th>Detalhe</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="logCount" class="table-count"></div>
+      <div id="validateResult" style="margin-top:10px;"></div>
+    </section>
   </main>
 
   <footer>
