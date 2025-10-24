@@ -2,7 +2,7 @@ import os
 import zipfile
 import requests
 from datetime import datetime
-from utils import log
+from agente.utils import log
 
 DOWNLOAD_URL = os.getenv("SPLITTER_API_DOWNLOAD")
 LOCAL_RECEIVED = os.path.join(os.getenv("BASE_DIR", ""), "recebidos")
