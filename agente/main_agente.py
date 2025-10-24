@@ -23,7 +23,7 @@ from agente.utils import log, tempo, extrair_nsa
 load_dotenv()
 
 # Diretório base (padrão para Azure)
-BASE_DIR = os.getenv("BASE_DIR", "/home/site/wwwroot")
+BASE_DIR = os.getenv("BASE_DIR", "/home/site/azurefiles")
 
 # Diretórios operacionais — sincronizados com o painel principal
 LOCAL_INPUT  = os.getenv("AGENTE_INPUT_DIR", os.path.join(BASE_DIR, "input"))
