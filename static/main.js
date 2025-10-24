@@ -342,3 +342,41 @@ function verLogsAgente() {
     clearInterval(logsInterval);
   }
 }
+
+// =====================================================
+// 📤 Envio de arquivos locais via Agente
+// =====================================================
+document.getElementById("btnUpload")?.addEventListener("click", async () => {
+  const input = document.getElementById("uploadInput");
+  const status = document.getElementById("uploadStatus");
+
+  if (!input.files.length) {
+    status.textContent = "⚠️ Nenhum arquivo selecionado.";
+    return;
+  }
+
+  const formData = new FormData();
+  for (const file of input.files) {
+    formData.append("files[]", file);
+  }
+
+  status.textContent = "⏳ Enviando arquivos...";
+  try {
+    const res = await fetch("/api/agente/upload", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      status.textContent = "✅ Upload concluído com sucesso!";
+      console.log("Upload result:", data.resultado);
+    } else {
+      status.textContent = "⚠️ Falha no upload. Veja o console para detalhes.";
+      console.warn(data);
+    }
+  } catch (err) {
+    status.textContent = "❌ Erro ao enviar arquivos.";
+    console.error(err);
+  }
+});
