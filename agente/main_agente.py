@@ -52,7 +52,6 @@ def main():
     ensure_dirs()
     log("🚀 Iniciando Netunna Splitter Agent v4.1")
 
-    # Lista arquivos disponíveis no diretório de input
     try:
         arquivos = [f for f in os.listdir(LOCAL_INPUT)
                     if os.path.isfile(os.path.join(LOCAL_INPUT, f))]
@@ -66,9 +65,6 @@ def main():
 
     ultimo_nsa = "000"
 
-    # =========================================================
-    # 1️⃣ Upload de arquivos
-    # =========================================================
     for nome in arquivos:
         caminho = os.path.join(LOCAL_INPUT, nome)
         nsa = extrair_nsa(nome)
@@ -79,22 +75,12 @@ def main():
         except Exception as e:
             log(f"❌ Falha ao enviar {nome}: {e}")
 
-    # =========================================================
-    # 2️⃣ Aguardar processamento remoto
-    # =========================================================
     log("⏳ Aguardando processamento remoto (30s)...")
     time.sleep(30)
 
-    # =========================================================
-    # 3️⃣ Baixar arquivos processados
-    # =========================================================
-    try:
-        log("⬇️ Iniciando download do output remoto...")
-        baixar_output(nsa_hint=ultimo_nsa)
-        log("✅ Download concluído com sucesso.")
-    except Exception as e:
-        log(f"⚠️ Erro ao baixar arquivos: {e}")
-
+    # 🔹 NÃO FAZ DOWNLOAD — apenas finaliza e informa o usuário
+    log("📦 Processamento remoto concluído.")
+    log("🗂️ Arquivos gerados estão disponíveis para download via painel Splitter.")
     log("🏁 Ciclo de execução finalizado com sucesso.")
     log(f"🕒 Duração total: {tempo()}")
 
