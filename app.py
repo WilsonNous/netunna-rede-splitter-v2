@@ -23,7 +23,8 @@ app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
 from modules.agente_routes import agente_bp
 app.register_blueprint(agente_bp, url_prefix="/api/agente")
 
-# --- Diretórios ---
+# --- Diretórios persistentes (Azure Files) ---
+BASE_DIR = os.getenv("BASE_DIR", "/home/site/azurefiles")
 INPUT_DIR  = os.path.join(BASE_DIR, "input")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 ERROR_DIR  = os.path.join(BASE_DIR, "erro")
@@ -31,7 +32,7 @@ LOG_DIR    = os.path.join(BASE_DIR, "logs")
 for d in [INPUT_DIR, OUTPUT_DIR, ERROR_DIR, LOG_DIR]:
     os.makedirs(d, exist_ok=True)
 
-print("📂 Diretórios configurados:")
+print("📂 Diretórios configurados (persistentes):")
 for name, path in {
     "INPUT_DIR": INPUT_DIR,
     "OUTPUT_DIR": OUTPUT_DIR,
