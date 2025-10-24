@@ -154,7 +154,12 @@
         <button onclick="verLogsAgente()">🧠 Ver Logs do Agente</button>
         <button onclick="loadFiles()">📜 Atualizar Status</button>
       </div>
-
+      <div class="agente-controls">
+        <h3>📤 Upload via Agente</h3>
+        <input type="file" id="uploadInput" multiple style="margin-top: 5px;" />
+        <button id="btnUpload" class="btn">Enviar Arquivos</button>
+        <p id="uploadStatus" style="color:#666; font-size: 0.9em;"></p>
+      </div>
       <div id="agentLogs" class="scroll-box">
         <pre id="agentLogContent"></pre>
       </div>
