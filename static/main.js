@@ -9,8 +9,8 @@ const HEARTBEAT_MS = 3 * 60 * 1000; // 3 minutos
 // ------------------------------
 function atualizarRelogio() {
   const agora = new Date();
-  const opcoes = { timeZone: 'America/Sao_Paulo', hour12: false };
-  const dataHora = agora.toLocaleString('pt-BR', opcoes);
+  const opcoes = { timeZone: "America/Sao_Paulo", hour12: false };
+  const dataHora = agora.toLocaleString("pt-BR", opcoes);
   document.getElementById("currentTime").textContent = dataHora;
 }
 atualizarRelogio();
@@ -21,7 +21,9 @@ setInterval(atualizarRelogio, 60000);
 // ------------------------------
 function parseBRDateTime(s) {
   if (!s) return null;
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+  const m = s.match(
+    /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/
+  );
   if (!m) return null;
   const [_, dd, mm, yyyy, HH, MM, SS] = m;
   return new Date(yyyy, mm - 1, dd, HH, MM, SS);
@@ -42,7 +44,7 @@ function formatRelativo(msDiff) {
 function inferStatusFromScan(scan) {
   let lastTs = null;
   if (scan?.input?.length) {
-    scan.input.forEach(item => {
+    scan.input.forEach((item) => {
       const dt = parseBRDateTime(item.data_hora);
       if (dt && (!lastTs || dt > lastTs)) lastTs = dt;
     });
@@ -57,10 +59,10 @@ function pintarStatus({ ativo, delta = null }) {
   const barra = document.getElementById("statusBar");
   if (ativo) {
     barra.className = "status-indicador ativo";
-    barra.innerHTML = `<span></span> 🟢 Ativo • Última atividade: há ${formatRelativo(delta)}`;
+    barra.innerHTML = `<span></span> 🟢 Agente Ativo • Última atividade há ${formatRelativo(delta)}`;
   } else {
     barra.className = "status-indicador parado";
-    barra.innerHTML = `<span></span> 🔴 Parado • Última atividade: há ${formatRelativo(delta)}`;
+    barra.innerHTML = `<span></span> 🔴 Agente Inativo • Última atividade há ${formatRelativo(delta)}`;
   }
 }
 
@@ -102,13 +104,15 @@ async function loadFiles() {
     if (!scan.input?.length) {
       tbodyIn.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;
     } else {
-      scan.input.forEach(i => {
+      scan.input.forEach((i) => {
         const tr = document.createElement("tr");
         tr.innerHTML = `<td class='mono'>${i.nome}</td><td>${i.data_hora}</td>`;
         tbodyIn.appendChild(tr);
       });
     }
-    document.getElementById("inputCount").textContent = `📊 Exibindo ${scan.input?.length || 0} registros.`;
+    document.getElementById(
+      "inputCount"
+    ).textContent = `📊 Exibindo ${scan.input?.length || 0} registros.`;
 
     // ---------- ARQUIVOS GERADOS ----------
     const outputContainer = document.getElementById("outputContainer");
@@ -120,38 +124,45 @@ async function loadFiles() {
       outputContainer.innerHTML = `<p style="text-align:center;">Nenhum arquivo gerado.</p>`;
     } else {
       const grupos = {};
-      scan.output.forEach(i => {
+      scan.output.forEach((i) => {
         const lote = i.lote || "NSA_000";
         if (!grupos[lote]) grupos[lote] = [];
         grupos[lote].push(i);
       });
       resumo.textContent = `📊 ${Object.keys(grupos).length} lotes processados — total de ${scan.output.length} arquivos.`;
 
-      Object.keys(grupos).sort().forEach(lote => {
-        const div = document.createElement("div");
-        div.classList.add("lote-grupo");
-        const header = document.createElement("div");
-        header.classList.add("lote-header");
-        header.innerHTML = `<h3>📦 ${lote} <span class='badge'>${grupos[lote].length}</span></h3>
+      Object.keys(grupos)
+        .sort()
+        .forEach((lote) => {
+          const div = document.createElement("div");
+          div.classList.add("lote-grupo");
+          const header = document.createElement("div");
+          header.classList.add("lote-header");
+          header.innerHTML = `<h3>📦 ${lote} <span class='badge'>${grupos[lote].length}</span></h3>
                             <button class='toggle-btn' onclick='toggleLote(this)'>+</button>`;
-        const content = document.createElement("div");
-        content.classList.add("lote-content");
-        content.innerHTML = `
+          const content = document.createElement("div");
+          content.classList.add("lote-content");
+          content.innerHTML = `
           <table>
             <thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead>
             <tbody>
               ${grupos[lote]
-                .map(a => `<tr>
+                .map(
+                  (a) => `<tr>
                   <td class='mono'>${a.nome}</td>
                   <td>${a.data_hora}</td>
-                  <td><a href='/api/download/${encodeURIComponent(a.nome)}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td>
-                </tr>`).join("")}
+                  <td><a href='/api/download/${encodeURIComponent(
+                    a.nome
+                  )}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td>
+                </tr>`
+                )
+                .join("")}
             </tbody>
           </table>`;
-        div.appendChild(header);
-        div.appendChild(content);
-        outputContainer.appendChild(div);
-      });
+          div.appendChild(header);
+          div.appendChild(content);
+          outputContainer.appendChild(div);
+        });
     }
 
     // ---------- LOGS ----------
@@ -161,29 +172,36 @@ async function loadFiles() {
     if (!logs?.length) {
       tbodyLog.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhum log encontrado.</td></tr>`;
     } else {
-      logs.slice().reverse().forEach(l => {
-        const integridade =
-          l.status?.toUpperCase() === "OK" ? "OK" :
-          l.status?.toUpperCase() === "FALHA" ? "FALHA" :
-          (l.status || "—");
+      logs
+        .slice()
+        .reverse()
+        .forEach((l) => {
+          const integridade =
+            l.status?.toUpperCase() === "OK"
+              ? "OK"
+              : l.status?.toUpperCase() === "FALHA"
+              ? "FALHA"
+              : l.status || "—";
 
-        let statusClass = "";
-        let icone = "";
-        if (integridade === "OK") {
-          statusClass = "ok"; icone = "✅";
-        } else if (integridade === "FALHA") {
-          statusClass = "erro"; icone = "❌";
-        }
+          let statusClass = "";
+          let icone = "";
+          if (integridade === "OK") {
+            statusClass = "ok";
+            icone = "✅";
+          } else if (integridade === "FALHA") {
+            statusClass = "erro";
+            icone = "❌";
+          }
 
-        let detalhe = l.detalhe || "—";
-        if (detalhe.includes("Nenhum arquivo filho encontrado")) {
-          detalhe = `<span style="color:#c00;font-weight:600;">${detalhe}</span>`;
-        } else if (integridade === "OK") {
-          detalhe = `<span style="color:#009f3c;">${detalhe}</span>`;
-        }
+          let detalhe = l.detalhe || "—";
+          if (detalhe.includes("Nenhum arquivo filho encontrado")) {
+            detalhe = `<span style="color:#c00;font-weight:600;">${detalhe}</span>`;
+          } else if (integridade === "OK") {
+            detalhe = `<span style="color:#009f3c;">${detalhe}</span>`;
+          }
 
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
           <td>${l.data_hora || "—"}</td>
           <td class='mono'>${l.arquivo || "—"}</td>
           <td>${l.tipo || "—"}</td>
@@ -191,14 +209,17 @@ async function loadFiles() {
           <td>${l.total_processado || 0}</td>
           <td class='${statusClass}'>${icone} ${integridade}</td>
           <td>${detalhe}</td>`;
-        tbodyLog.appendChild(tr);
-      });
+          tbodyLog.appendChild(tr);
+        });
     }
-    document.getElementById("logCount").textContent = `📊 Exibindo ${logs?.length || 0} registros.`;
-
+    document.getElementById(
+      "logCount"
+    ).textContent = `📊 Exibindo ${logs?.length || 0} registros.`;
   } catch (err) {
     console.error("Erro ao carregar dados:", err);
-    document.getElementById("statusBar").innerHTML = `<span></span> ⚠️ Erro ao consultar API`;
+    document.getElementById(
+      "statusBar"
+    ).innerHTML = `<span></span> ⚠️ Erro ao consultar API`;
   }
 }
 
@@ -210,17 +231,28 @@ function toggleLote(btn) {
   const content = grupo.querySelector(".lote-content");
   const isOpen = content.classList.contains("open");
 
-  document.querySelectorAll(".lote-content.open").forEach(c => {
-    c.classList.remove("open");
-    c.parentElement.classList.remove("open");
-    c.previousElementSibling.querySelector("button").textContent = "+";
-  });
-
   if (!isOpen) {
     content.classList.add("open");
     grupo.classList.add("open");
     btn.textContent = "−";
+  } else {
+    content.classList.remove("open");
+    grupo.classList.remove("open");
+    btn.textContent = "+";
   }
+}
+
+function toggleTodos(expandir = true) {
+  document.querySelectorAll(".lote-content").forEach((c) => {
+    const btn = c.previousElementSibling.querySelector("button.toggle-btn");
+    if (expandir && !c.classList.contains("open")) {
+      c.classList.add("open");
+      btn.textContent = "−";
+    } else if (!expandir && c.classList.contains("open")) {
+      c.classList.remove("open");
+      btn.textContent = "+";
+    }
+  });
 }
 
 // ------------------------------
@@ -232,7 +264,7 @@ async function downloadAll() {
     const data = await resp.json();
     if (data.zips?.length) {
       alert(`Foram gerados ${data.zips.length} arquivos ZIP.`);
-      data.zips.forEach(z => {
+      data.zips.forEach((z) => {
         const a = document.createElement("a");
         a.href = `/zips/${z}`;
         a.download = z;
@@ -253,7 +285,9 @@ function abrirValidador() {
   const tipo = prompt("Informe o tipo de arquivo (EEVC / EEVD / EEFI):");
   if (!tipo) return;
 
-  const arquivoMae = prompt("Informe o nome do arquivo mãe (ex: VENTUNOFORTE_20770677_VC_05102025041.TXT):");
+  const arquivoMae = prompt(
+    "Informe o nome do arquivo mãe (ex: VENTUNOFORTE_20770677_VC_05102025041.TXT):"
+  );
   if (!arquivoMae) return;
 
   const nsa = prompt("Informe o número do lote (ex: 041):");
@@ -268,25 +302,25 @@ function abrirValidador() {
   fetch("/api/validate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tipo, arquivo_mae: arquivoMae, nsa })
+    body: JSON.stringify({ tipo, arquivo_mae: arquivoMae, nsa }),
   })
-  .then(r => r.json())
-  .then(d => {
-    const msg = d.ok
-      ? `✅ ${d.mensagem}<br>📄 Relatório: <code>${d.relatorio}</code>`
-      : `⚠️ ${d.mensagem}`;
-    if (validateDiv) {
-      validateDiv.innerHTML = msg;
-      validateDiv.style.color = d.ok ? "green" : "#c00";
-    } else alert(msg);
-  })
-  .catch(err => {
-    const msg = `❌ Erro ao validar: ${err}`;
-    if (validateDiv) {
-      validateDiv.innerHTML = msg;
-      validateDiv.style.color = "#c00";
-    } else alert(msg);
-  });
+    .then((r) => r.json())
+    .then((d) => {
+      const msg = d.ok
+        ? `✅ ${d.mensagem}<br>📄 Relatório: <code>${d.relatorio}</code>`
+        : `⚠️ ${d.mensagem}`;
+      if (validateDiv) {
+        validateDiv.innerHTML = msg;
+        validateDiv.style.color = d.ok ? "green" : "#c00";
+      } else alert(msg);
+    })
+    .catch((err) => {
+      const msg = `❌ Erro ao validar: ${err}`;
+      if (validateDiv) {
+        validateDiv.innerHTML = msg;
+        validateDiv.style.color = "#c00";
+      } else alert(msg);
+    });
 }
 
 // ------------------------------
@@ -297,13 +331,14 @@ setInterval(() => {
   const validateDiv = document.getElementById("validateResult");
   const ultimoResultado = validateDiv?.innerHTML;
   loadFiles().then(() => {
-    if (validateDiv && ultimoResultado) validateDiv.innerHTML = ultimoResultado;
+    if (validateDiv && ultimoResultado)
+      validateDiv.innerHTML = ultimoResultado;
   });
 }, 30000);
 
-// ==============================
+// ==========================================================
 // ⚙️ Integração com Agente Netunna
-// ==============================
+// ==========================================================
 async function executarAgente() {
   try {
     const res = await fetch("/api/agente/run", { method: "POST" });
@@ -343,8 +378,25 @@ function verLogsAgente() {
   }
 }
 
+// ==========================================================
+// 🧹 LIMPAR CACHE DO AGENTE
+// ==========================================================
+async function resetAgente() {
+  if (!confirm("Tem certeza que deseja limpar cache e logs do agente?")) return;
+  try {
+    const res = await fetch("/api/agente/reset", { method: "POST" });
+    const data = await res.json();
+    alert(data.mensagem || "Cache e diretórios do agente limpos com sucesso.");
+    document.getElementById("uploadStatus").textContent = "🧹 Cache limpo.";
+    document.getElementById("agentLogContent").textContent = "";
+    loadFiles();
+  } catch (err) {
+    alert("❌ Erro ao limpar cache do agente: " + err);
+  }
+}
+
 // =====================================================
-// 📤 Upload de arquivos locais via Agente (v2 refinado)
+// 📤 Upload de arquivos locais via Agente
 // =====================================================
 document.addEventListener("DOMContentLoaded", () => {
   const btnUpload = document.getElementById("btnUpload");
@@ -354,36 +406,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (!btnUpload || !input) return;
 
-  // Clicar no botão → abre seletor de arquivos
   btnUpload.addEventListener("click", () => input.click());
 
-  // Ao selecionar arquivos
   input.addEventListener("change", async () => {
     const files = Array.from(input.files);
     if (!files.length) return;
 
-    // 🔹 Validação de duplicidade
-    const nomes = files.map(f => f.name);
+    const nomes = files.map((f) => f.name);
     const duplicados = nomes.filter((v, i, a) => a.indexOf(v) !== i);
     if (duplicados.length) {
-      status.textContent = `⚠️ Arquivos duplicados detectados: ${duplicados.join(", ")}`;
+      status.textContent = `⚠️ Arquivos duplicados detectados: ${duplicados.join(
+        ", "
+      )}`;
       input.value = "";
       return;
     }
 
-    // 🔹 Inicializa visual
     progress.style.display = "block";
     progress.value = 0;
     status.textContent = `📦 Enviando ${files.length} arquivo(s) para o Agente...`;
 
     const formData = new FormData();
-    files.forEach(f => formData.append("files[]", f));
+    files.forEach((f) => formData.append("files[]", f));
 
     try {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/agente/upload", true);
 
-      // Atualiza progresso
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
           const percent = Math.round((e.loaded / e.total) * 100);
@@ -392,23 +441,27 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       };
 
-      // Resposta do servidor
       xhr.onload = () => {
         if (xhr.status === 200) {
           try {
             const data = JSON.parse(xhr.responseText);
             if (data.ok || data.status === "success") {
-              status.textContent = `✅ Upload concluído: ${files.map(f => f.name).join(", ")}`;
+              status.textContent = `✅ Upload concluído: ${files
+                .map((f) => f.name)
+                .join(", ")}`;
               progress.value = 100;
               setTimeout(() => {
                 progress.style.display = "none";
-                loadFiles(); // atualiza painel automaticamente
+                loadFiles();
               }, 1500);
             } else {
-              status.textContent = `⚠️ Falha no upload: ${data.message || "Erro desconhecido"}`;
+              status.textContent = `⚠️ Falha no upload: ${
+                data.message || "Erro desconhecido"
+              }`;
             }
           } catch {
-            status.textContent = "⚠️ Upload finalizado, mas resposta inesperada do servidor.";
+            status.textContent =
+              "⚠️ Upload finalizado, mas resposta inesperada do servidor.";
           }
         } else {
           status.textContent = `❌ Erro HTTP ${xhr.status} durante o upload.`;
