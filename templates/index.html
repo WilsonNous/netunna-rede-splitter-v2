@@ -155,10 +155,13 @@
         <button onclick="loadFiles()">📜 Atualizar Status</button>
       </div>
       <div class="agente-controls">
-        <h3>📤 Upload via Agente</h3>
-        <input type="file" id="uploadInput" multiple style="margin-top: 5px;" />
-        <button id="btnUpload" class="btn">Enviar Arquivos</button>
-        <p id="uploadStatus" style="color:#666; font-size: 0.9em;"></p>
+        <h3>📤 Upload via Agente</h3>     
+        <div id="agenteUploadBox" style="margin-top:8px;">
+          <input type="file" id="uploadInput" multiple style="display:none;" />
+          <button id="btnUpload" class="btn">📤 Enviar para Agente</button>
+          <progress id="uploadProgress" value="0" max="100" style="display:none; width:90%; height:8px; margin-top:8px;"></progress>
+          <p id="uploadStatus" style="color:#666; font-size:0.9em; margin-top:5px;">Nenhum upload em andamento.</p>
+        </div>
       </div>
       <div id="agentLogs" class="scroll-box">
         <pre id="agentLogContent"></pre>
