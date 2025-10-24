@@ -12,8 +12,8 @@ import traceback
 import os
 
 from main import main as executar_ciclo
-from utils import log, ler_ultimos_logs
-from downloader import baixar_output
+from agente.utils import log, ler_ultimos_logs
+from agente.downloader import baixar_output
 
 # ---------------------------------------------------------
 # Configuração básica
