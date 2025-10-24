@@ -218,77 +218,7 @@
     © Netunna Automations — REDE Splitter v5.3 | Atualização automática a cada 30s
     <div id="clock">🕒 <span id="currentTime"></span> • Horário de Brasília (BRT)</div>
   </footer>
-
   <iframe id="ednna-frame" src="/static/ednna.html" title="Assistente Ednna"></iframe>
-
-  <script>
-    async function executarAgente() {
-      try {
-        const res = await fetch("/api/agente/run", { method: "POST" });
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const data = await res.json();
-          alert(data.msg || "✅ Agente iniciado com sucesso!");
-        } else {
-          const text = await res.text();
-          console.warn("Resposta não JSON:", text);
-          alert("⚠️ O servidor retornou uma resposta inesperada.");
-        }
-        verLogsAgente();
-      } catch (err) {
-        alert("Erro ao iniciar o agente: " + err);
-      }
-    }
-
-    async function baixarArquivosProcessados() {
-      try {
-        const resp = await fetch("/api/agente/download");
-        if (!resp.ok) {
-          alert("⚠️ Erro ao gerar ZIP: " + resp.statusText);
-          return;
-        }
-        const blob = await resp.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `netunna_output_${new Date().toISOString().slice(0,19).replace(/[:T]/g, "-")}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        alert("📦 Arquivos processados baixados com sucesso!");
-      } catch (err) {
-        console.error("Erro ao baixar ZIP:", err);
-        alert("❌ Erro ao baixar arquivos: " + err);
-      }
-    }
-
-
-    function verLogsAgente() {
-      const box = document.getElementById("agentLogs");
-      const content = document.getElementById("agentLogContent");
-
-      if (box.style.display === "none" || box.style.display === "") {
-        box.style.display = "block";
-        logsInterval = setInterval(async () => {
-          try {
-            const res = await fetch("/api/agente/status");
-            const data = await res.json();
-            if (data.logs) {
-              content.textContent = data.logs.join("\n");
-              content.scrollTop = content.scrollHeight;
-            }
-          } catch (e) {
-            console.warn("Erro ao buscar logs do agente:", e);
-          }
-        }, 4000);
-      } else {
-        box.style.display = "none";
-        clearInterval(logsInterval);
-      }
-    }
-  </script>
-
   <script src="/static/main.js"></script>
 </body>
 </html>
