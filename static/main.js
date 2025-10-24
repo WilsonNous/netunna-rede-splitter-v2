@@ -411,28 +411,26 @@ document.addEventListener("DOMContentLoaded", () => {
   input.addEventListener("change", async () => {
     const files = Array.from(input.files);
     if (!files.length) return;
-
+  
     const nomes = files.map((f) => f.name);
     const duplicados = nomes.filter((v, i, a) => a.indexOf(v) !== i);
     if (duplicados.length) {
-      status.textContent = `⚠️ Arquivos duplicados detectados: ${duplicados.join(
-        ", "
-      )}`;
+      status.textContent = `⚠️ Arquivos duplicados detectados: ${duplicados.join(", ")}`;
       input.value = "";
       return;
     }
-
+  
     progress.style.display = "block";
     progress.value = 0;
     status.textContent = `📦 Enviando ${files.length} arquivo(s) para o Agente...`;
-
+  
     const formData = new FormData();
     files.forEach((f) => formData.append("files[]", f));
-
+  
     try {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/agente/upload", true);
-
+  
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
           const percent = Math.round((e.loaded / e.total) * 100);
@@ -440,38 +438,38 @@ document.addEventListener("DOMContentLoaded", () => {
           status.textContent = `🚀 Enviando... ${percent}%`;
         }
       };
-
+  
       xhr.onload = () => {
         if (xhr.status === 200) {
           try {
             const data = JSON.parse(xhr.responseText);
             if (data.ok || data.status === "success") {
-              status.textContent = `✅ Upload concluído: ${files
-                .map((f) => f.name)
-                .join(", ")}`;
+              const maxItens = 10;
+              let lista = files.slice(0, maxItens).map(f => `• ${f.name}`).join("\n");
+              if (files.length > maxItens)
+                lista += `\n... e mais ${files.length - maxItens} arquivo(s).`;
+  
+              status.innerHTML = `✅ Upload concluído:<br><pre>${lista}</pre>`;
               progress.value = 100;
               setTimeout(() => {
                 progress.style.display = "none";
                 loadFiles();
               }, 1500);
             } else {
-              status.textContent = `⚠️ Falha no upload: ${
-                data.message || "Erro desconhecido"
-              }`;
+              status.textContent = `⚠️ Falha no upload: ${data.message || "Erro desconhecido"}`;
             }
           } catch {
-            status.textContent =
-              "⚠️ Upload finalizado, mas resposta inesperada do servidor.";
+            status.textContent = "⚠️ Upload finalizado, mas resposta inesperada do servidor.";
           }
         } else {
           status.textContent = `❌ Erro HTTP ${xhr.status} durante o upload.`;
         }
       };
-
+  
       xhr.onerror = () => {
         status.textContent = "❌ Erro de conexão com o servidor.";
       };
-
+  
       xhr.send(formData);
     } catch (err) {
       console.error(err);
