@@ -66,9 +66,12 @@ def status():
 # =========================================================
 @agente_bp.route("/download", methods=["GET"])
 def download():
-    log("⬇️ Download remoto solicitado via painel Splitter.")
-    Thread(target=baixar_output, daemon=True).start()
-    return jsonify({"status": "started", "msg": "Download iniciado com sucesso."})
+    log("ℹ️ Download remoto não é mais executado pelo agente.")
+    log("📦 Os arquivos processados estão disponíveis para download direto via painel Splitter.")
+    return jsonify({
+        "status": "ok",
+        "msg": "Arquivos disponíveis no painel. Download automático desativado no agente."
+    })
 
 # =========================================================
 # 📤 Upload de arquivos via painel (API)
