@@ -344,39 +344,87 @@ function verLogsAgente() {
 }
 
 // =====================================================
-// 📤 Envio de arquivos locais via Agente
+// 📤 Upload de arquivos locais via Agente (v2 refinado)
 // =====================================================
-document.getElementById("btnUpload")?.addEventListener("click", async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  const btnUpload = document.getElementById("btnUpload");
   const input = document.getElementById("uploadInput");
   const status = document.getElementById("uploadStatus");
+  const progress = document.getElementById("uploadProgress");
 
-  if (!input.files.length) {
-    status.textContent = "⚠️ Nenhum arquivo selecionado.";
-    return;
-  }
+  if (!btnUpload || !input) return;
 
-  const formData = new FormData();
-  for (const file of input.files) {
-    formData.append("files[]", file);
-  }
+  // Clicar no botão → abre seletor de arquivos
+  btnUpload.addEventListener("click", () => input.click());
 
-  status.textContent = "⏳ Enviando arquivos...";
-  try {
-    const res = await fetch("/api/agente/upload", {
-      method: "POST",
-      body: formData
-    });
-    const data = await res.json();
+  // Ao selecionar arquivos
+  input.addEventListener("change", async () => {
+    const files = Array.from(input.files);
+    if (!files.length) return;
 
-    if (data.ok) {
-      status.textContent = "✅ Upload concluído com sucesso!";
-      console.log("Upload result:", data.resultado);
-    } else {
-      status.textContent = "⚠️ Falha no upload. Veja o console para detalhes.";
-      console.warn(data);
+    // 🔹 Validação de duplicidade
+    const nomes = files.map(f => f.name);
+    const duplicados = nomes.filter((v, i, a) => a.indexOf(v) !== i);
+    if (duplicados.length) {
+      status.textContent = `⚠️ Arquivos duplicados detectados: ${duplicados.join(", ")}`;
+      input.value = "";
+      return;
     }
-  } catch (err) {
-    status.textContent = "❌ Erro ao enviar arquivos.";
-    console.error(err);
-  }
+
+    // 🔹 Inicializa visual
+    progress.style.display = "block";
+    progress.value = 0;
+    status.textContent = `📦 Enviando ${files.length} arquivo(s) para o Agente...`;
+
+    const formData = new FormData();
+    files.forEach(f => formData.append("files[]", f));
+
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/agente/upload", true);
+
+      // Atualiza progresso
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          progress.value = percent;
+          status.textContent = `🚀 Enviando... ${percent}%`;
+        }
+      };
+
+      // Resposta do servidor
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (data.ok || data.status === "success") {
+              status.textContent = `✅ Upload concluído: ${files.map(f => f.name).join(", ")}`;
+              progress.value = 100;
+              setTimeout(() => {
+                progress.style.display = "none";
+                loadFiles(); // atualiza painel automaticamente
+              }, 1500);
+            } else {
+              status.textContent = `⚠️ Falha no upload: ${data.message || "Erro desconhecido"}`;
+            }
+          } catch {
+            status.textContent = "⚠️ Upload finalizado, mas resposta inesperada do servidor.";
+          }
+        } else {
+          status.textContent = `❌ Erro HTTP ${xhr.status} durante o upload.`;
+        }
+      };
+
+      xhr.onerror = () => {
+        status.textContent = "❌ Erro de conexão com o servidor.";
+      };
+
+      xhr.send(formData);
+    } catch (err) {
+      console.error(err);
+      status.textContent = "❌ Erro inesperado durante o envio.";
+    } finally {
+      input.value = "";
+    }
+  });
 });
