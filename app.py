@@ -169,28 +169,76 @@ def get_status():
     return jsonify({"logs": logs})
 
 # ==============================
-# API: Download individual
+# ✅ API: Download individual (corrigida)
 # ==============================
 @app.route("/api/download/<filename>", methods=["GET"])
 def download_file(filename):
-    return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
+    """
+    Permite baixar qualquer arquivo gerado, mesmo dentro das subpastas (NSA_xxx).
+    """
+    try:
+        # 1️⃣ Verifica se está diretamente na raiz do output
+        direct_path = os.path.join(OUTPUT_DIR, filename)
+        if os.path.exists(direct_path):
+            return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
+
+        # 2️⃣ Busca recursivamente nas subpastas
+        for root, _, files in os.walk(OUTPUT_DIR):
+            if filename in files:
+                print(f"⬇️ Download localizado: {filename} em {root}")
+                return send_from_directory(root, filename, as_attachment=True)
+
+        # 3️⃣ Se não encontrar
+        print(f"⚠️ Download falhou — arquivo não encontrado: {filename}")
+        return jsonify({
+            "erro": f"Arquivo '{filename}' não encontrado em {OUTPUT_DIR} ou subpastas."
+        }), 404
+
+    except Exception as e:
+        print(f"❌ Erro durante download de {filename}: {e}")
+        return jsonify({"erro": str(e)}), 500
+
 
 # ==============================
-# ✅ API: Download ZIP (ajustado)
+# ✅ API: Download ZIP completo (corrigida)
 # ==============================
 @app.route("/api/download-all", methods=["GET"])
 def api_download_all():
-    """Gera e envia um ZIP real contendo todos os arquivos processados."""
-    memory_file = io.BytesIO()
-    with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for root, _, files in os.walk(OUTPUT_DIR):  # ← aqui corrigido
-            for f in files:
-                file_path = os.path.join(root, f)
-                arcname = os.path.relpath(file_path, OUTPUT_DIR)
-                zipf.write(file_path, arcname)
-    memory_file.seek(0)
-    zip_name = f"output_{datetime.now(TZ_BR).strftime('%Y%m%d_%H%M%S')}.zip"
-    return send_file(memory_file, mimetype="application/zip", as_attachment=True, download_name=zip_name)
+    """
+    Compacta todos os arquivos gerados (inclusive os que estão dentro das pastas NSA_xxx)
+    em um único ZIP para download.
+    """
+    try:
+        memory_file = io.BytesIO()
+        total_arquivos = 0
+
+        with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for root, _, files in os.walk(OUTPUT_DIR):
+                for f in files:
+                    file_path = os.path.join(root, f)
+                    arcname = os.path.relpath(file_path, OUTPUT_DIR)
+                    zipf.write(file_path, arcname)
+                    total_arquivos += 1
+
+        if total_arquivos == 0:
+            print("⚠️ Nenhum arquivo encontrado para compactar.")
+            return jsonify({"mensagem": "Nenhum arquivo encontrado no diretório de saída."}), 404
+
+        memory_file.seek(0)
+        zip_name = f"NetunnaSplitter_{datetime.now(TZ_BR).strftime('%Y%m%d_%H%M%S')}.zip"
+        print(f"📦 ZIP gerado com {total_arquivos} arquivos → {zip_name}")
+
+        return send_file(
+            memory_file,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=zip_name
+        )
+
+    except Exception as e:
+        print(f"❌ Erro ao gerar ZIP: {e}")
+        return jsonify({"erro": str(e)}), 500
+
 
 # ==============================
 # ✅ API: Scan diretórios (corrigido)
