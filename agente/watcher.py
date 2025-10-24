@@ -4,8 +4,8 @@ Quando novos arquivos são detectados → upload automático.
 """
 import time
 import os
-from uploader import upload_file
-from utils import log, extrair_nsa
+from agente.uploader import upload_file
+from agente.utils import log, extrair_nsa
 
 def run_watcher():
     input_dir = os.getenv("AGENTE_INPUT_DIR")
