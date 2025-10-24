@@ -11,7 +11,7 @@ from threading import Thread
 import traceback
 import os
 
-from main import main as executar_ciclo
+from agente.main_agente import main as executar_ciclo
 from agente.utils import log, ler_ultimos_logs
 from agente.downloader import baixar_output
 
