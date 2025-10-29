@@ -135,3 +135,70 @@ def upload_via_agente():
         "mensagem": msg,
         "resultado": resultados
     })
+
+# =========================================================
+# 🩺 Healthcheck do agente
+# =========================================================
+@agente_bp.route("/health", methods=["GET"])
+def health():
+    """Verifica se o agente está online."""
+    try:
+        return jsonify({
+            "status": "ok",
+            "service": "Agente Netunna Splitter",
+            "version": "v4.1"
+        })
+    except Exception as e:
+        log(f"⚠️ Falha no healthcheck: {e}")
+        return jsonify({"status": "error", "msg": str(e)}), 500
+
+
+# =========================================================
+# ⬇️ Pull síncrono (download com lease)
+# =========================================================
+@agente_bp.route("/pull", methods=["POST", "GET"])
+def pull():
+    """
+    Executa um ciclo de download dos outputs no modo lease.
+    Pode ser chamado por GET (com querystring) ou POST (JSON).
+    Exemplo:
+      GET  /api/agente/pull?limit=200&mode=lease&lotes=NSA_037,NSA_045
+      POST /api/agente/pull { "limit":200, "mode":"lease", "lotes":["NSA_037"] }
+    """
+    try:
+        limit = 200
+        mode = "lease"
+        lotes = []
+
+        if request.method == "GET":
+            limit = int(request.args.get("limit", limit))
+            mode = request.args.get("mode", mode)
+            if request.args.get("lotes"):
+                lotes = [x.strip() for x in request.args.get("lotes").split(",") if x.strip()]
+        else:
+            data = request.get_json(silent=True) or {}
+            limit = int(data.get("limit", limit))
+            mode = data.get("mode", mode)
+            lotes = data.get("lotes", lotes)
+
+        # Aplica modo e chama downloader
+        os.environ["DOWNLOAD_MODE"] = mode
+        log(f"⏬ Pull solicitado → mode={mode}, limit={limit}, lotes={lotes or 'todos'}")
+
+        from agente.downloader import baixar_output
+        result = baixar_output(nsa_hint="000")
+
+        if not result:
+            return jsonify({"status": "error", "msg": "Nenhum retorno do downloader"}), 500
+
+        return jsonify({
+            "status": "success",
+            "mode": mode,
+            "limit": limit,
+            "lotes": lotes,
+            "resultado": result
+        })
+
+    except Exception as e:
+        log(f"❌ Erro no pull: {e}")
+        return jsonify({"status": "error", "msg": str(e)}), 500
