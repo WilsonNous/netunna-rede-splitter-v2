@@ -75,6 +75,68 @@ def download():
         return jsonify({"status": "error", "msg": str(e)}), 500
 
 # ---------------------------------------------------------
+# Endpoint: Health (sanidade)
+# ---------------------------------------------------------
+@app.route("/api/agente/health", methods=["GET"])
+def health():
+    try:
+        return jsonify({"status": "ok", "service": "Agente Netunna", "version": "v4.1"}), 200
+    except Exception as e:
+        log(f"⚠️ Health falhou: {e}")
+        return jsonify({"status": "error", "msg": str(e)}), 500
+
+# ---------------------------------------------------------
+# Endpoint: Pull síncrono (lease/direct/zip)
+# - GET  /api/agente/pull?limit=200&mode=lease&lotes=NSA_037,NSA_045
+# - POST /api/agente/pull  { "limit": 200, "mode": "lease", "lotes": ["NSA_037"] }
+# ---------------------------------------------------------
+@app.route("/api/agente/pull", methods=["GET", "POST"])
+def pull_sync():
+    try:
+        # Defaults
+        limit = 200
+        mode = os.getenv("DOWNLOAD_MODE", "lease").lower()
+        lotes = []
+
+        # Querystring
+        if request.method == "GET":
+            if request.args.get("limit"):
+                limit = int(request.args.get("limit"))
+            if request.args.get("mode"):
+                mode = request.args.get("mode").lower()
+            if request.args.get("lotes"):
+                lotes = [s for s in request.args.get("lotes").split(",") if s.strip()]
+        else:
+            # JSON body
+            payload = request.get_json(silent=True) or {}
+            limit = int(payload.get("limit", limit))
+            mode = str(payload.get("mode", mode)).lower()
+            lotes = payload.get("lotes") or lotes
+
+        # Chama o core (síncrono)
+        # Observação: o 'mode' é lido de env dentro do downloader. Se o seu
+        # baixar_output já respeita DOWNLOAD_MODE de env, você pode ignorar 'mode' aqui.
+        # Caso deseje forçar por chamada, defina DOWNLOAD_MODE no os.environ antes:
+        if mode in ("zip", "lease", "direct"):
+            os.environ["DOWNLOAD_MODE"] = mode
+
+        log(f"⏬ Pull solicitado: mode={mode} limit={limit} lotes={lotes or 'todos'}")
+        result = baixar_output(nsa_hint="000", lotes=lotes, limit=limit)
+
+        # Normaliza status HTTP
+        http_status = 200
+        status_txt = "success"
+        if not result or result.get("ok") is False or str(result.get("notes", "")).startswith("fatal"):
+            http_status = 500
+            status_txt = "error"
+
+        return jsonify({"status": status_txt, **(result or {})}), http_status
+
+    except Exception as e:
+        log(f"❌ Erro no pull_sync: {e}")
+        return jsonify({"status": "error", "msg": str(e)}), 500
+
+# ---------------------------------------------------------
 # Inicialização
 # ---------------------------------------------------------
 if __name__ == "__main__":
