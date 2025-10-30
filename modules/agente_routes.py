@@ -154,50 +154,81 @@ def health():
 
 
 # =========================================================
-# ⬇️ Pull síncrono (download com lease)
+# ⬇️ Pull assíncrono com filtros de data
 # =========================================================
 @agente_bp.route("/pull", methods=["POST", "GET"])
 def pull():
     """
-    Executa um ciclo de download dos outputs no modo lease.
-    Pode ser chamado por GET (com querystring) ou POST (JSON).
+    Executa ou dispara um ciclo de download dos outputs no modo lease ou zip.
+    Pode ser chamado por GET (querystring) ou POST (JSON).
+    Suporta filtros de data para reduzir volume e tráfego:
+      - date_from=YYYY-MM-DD
+      - date_to=YYYY-MM-DD
+      - since_days=N  (ex.: últimos N dias)
     Exemplo:
-      GET  /api/agente/pull?limit=200&mode=lease&lotes=NSA_037,NSA_045
-      POST /api/agente/pull { "limit":200, "mode":"lease", "lotes":["NSA_037"] }
+      GET  /api/agente/pull?limit=200&mode=lease&since_days=2
+      POST /api/agente/pull { "limit":100, "mode":"lease", "date_from":"2025-10-25" }
     """
+    from datetime import datetime, timedelta
+    from agente.downloader import baixar_output
+
     try:
+        # --- Parâmetros padrão
         limit = 200
         mode = "lease"
         lotes = []
+        date_filter = {}
 
         if request.method == "GET":
             limit = int(request.args.get("limit", limit))
             mode = request.args.get("mode", mode)
             if request.args.get("lotes"):
                 lotes = [x.strip() for x in request.args.get("lotes").split(",") if x.strip()]
+
+            # Filtros de data (GET)
+            if request.args.get("since_days"):
+                days = int(request.args.get("since_days"))
+                date_filter["date_from"] = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            if request.args.get("date_from"):
+                date_filter["date_from"] = request.args.get("date_from")
+            if request.args.get("date_to"):
+                date_filter["date_to"] = request.args.get("date_to")
+
         else:
             data = request.get_json(silent=True) or {}
             limit = int(data.get("limit", limit))
             mode = data.get("mode", mode)
             lotes = data.get("lotes", lotes)
 
-        # Aplica modo e chama downloader
+            # Filtros de data (POST)
+            if "since_days" in data:
+                days = int(data["since_days"])
+                date_filter["date_from"] = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            if "date_from" in data:
+                date_filter["date_from"] = data["date_from"]
+            if "date_to" in data:
+                date_filter["date_to"] = data["date_to"]
+
         os.environ["DOWNLOAD_MODE"] = mode
-        log(f"⏬ Pull solicitado → mode={mode}, limit={limit}, lotes={lotes or 'todos'}")
 
-        from agente.downloader import baixar_output
-        result = baixar_output(nsa_hint="000")
+        log(f"⏬ Pull solicitado → mode={mode}, limit={limit}, lotes={lotes or 'todos'}, filtros={date_filter or 'nenhum'}")
 
-        if not result:
-            return jsonify({"status": "error", "msg": "Nenhum retorno do downloader"}), 500
+        # --- Executa em background para evitar timeout
+        Thread(
+            target=lambda: baixar_output(
+                nsa_hint="000",
+                lotes=lotes,
+                limit=limit,
+                mode=mode,
+                date_filter=date_filter
+            ),
+            daemon=True
+        ).start()
 
         return jsonify({
-            "status": "success",
-            "mode": mode,
-            "limit": limit,
-            "lotes": lotes,
-            "resultado": result
-        })
+            "status": "started",
+            "msg": f"Pull disparado em background (mode={mode}, limit={limit}, filtros={date_filter or 'nenhum'})"
+        }), 202
 
     except Exception as e:
         log(f"❌ Erro no pull: {e}")
