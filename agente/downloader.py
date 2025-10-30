@@ -95,11 +95,15 @@ def _baixar_zip_consolidado(nsa_hint: str = "000") -> Dict[str, Any]:
 # =========================================================
 # 🔒 MODO LEASE (RECOMENDADO) — lease + confirm
 # =========================================================
-def _pull_lease(lotes: Optional[List[str]] = None, limit: Optional[int] = None) -> Dict[str, Any]:
+def _pull_lease(
+    lotes: Optional[List[str]] = None,
+    limit: Optional[int] = None,
+    date_filter: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
-    1) POST /api/splitter/lease-files -> pega arquivos 'pending', marca 'leased' e retorna lista + SAS/URL
-    2) Baixa cada arquivo para LOCAL_RECEIVED/<lote>/<nome> (valida tamanho/sha quando vier)
-    3) POST /api/splitter/confirm-download com ok_ids / fail_ids
+    1) POST /api/splitter/lease-files -> pega arquivos 'pending', marca 'leased'
+    2) Filtra por data se informado (date_from/date_to)
+    3) Baixa e confirma no Splitter
     """
     lotes = lotes or []
     limit = limit or PULL_LIMIT
@@ -109,9 +113,13 @@ def _pull_lease(lotes: Optional[List[str]] = None, limit: Optional[int] = None) 
     lease_ep = f"{SPLITTER_BASE_URL}/api/splitter/lease-files"
     confirm_ep = f"{SPLITTER_BASE_URL}/api/splitter/confirm-download"
 
-    log(f"🔒 (LEASE) Solicitando lease de até {limit} arquivos... lotes={lotes or 'todos'}")
-    r = requests.post(lease_ep, json={"limit": limit, "lotes": lotes, "ttl_seconds": LEASE_TTL_SECONDS},
-                      headers=HEADERS, timeout=60)
+    log(f"🔒 (LEASE) Solicitando lease de até {limit} arquivos... lotes={lotes or 'todos'} filtros={date_filter or 'nenhum'}")
+
+    payload = {"limit": limit, "lotes": lotes, "ttl_seconds": LEASE_TTL_SECONDS}
+    if date_filter:
+        payload.update(date_filter)
+
+    r = requests.post(lease_ep, json=payload, headers=HEADERS, timeout=90)
     r.raise_for_status()
     data = r.json()
     files = data.get("files", [])
@@ -120,11 +128,11 @@ def _pull_lease(lotes: Optional[List[str]] = None, limit: Optional[int] = None) 
     ok_ids, fail_ids, saved = [], [], []
     for f in files:
         file_id = f["id"]
-        lote    = f.get("lote") or f.get("dir") or ""
-        nome    = f["nome"]
-        url     = f.get("sas_url") or f.get("url")
-        sha     = f.get("sha256")
-        size    = f.get("tamanho") or f.get("size")
+        lote = f.get("lote") or f.get("dir") or ""
+        nome = f["nome"]
+        url = f.get("sas_url") or f.get("url")
+        sha = f.get("sha256")
+        size = f.get("tamanho") or f.get("size")
 
         dest = LOCAL_RECEIVED / lote / nome
         try:
@@ -164,10 +172,14 @@ def _pull_lease(lotes: Optional[List[str]] = None, limit: Optional[int] = None) 
 # =========================================================
 # ⚡ MODO DIRECT (SIMPLES) — marca baixado ao responder
 # =========================================================
-def _pull_direct(lotes: Optional[List[str]] = None, limit: Optional[int] = None) -> Dict[str, Any]:
+def _pull_direct(
+    lotes: Optional[List[str]] = None,
+    limit: Optional[int] = None,
+    date_filter: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
-    POST /api/splitter/pull-batch -> seleciona 'pending', já marca 'downloaded' e retorna lista com SAS/URL
-    Risco: se cair durante o download, já ficou como baixado no Splitter.
+    POST /api/splitter/pull-batch -> baixa e marca como baixado
+    Filtro opcional: date_from, date_to
     """
     lotes = lotes or []
     limit = limit or PULL_LIMIT
@@ -175,8 +187,12 @@ def _pull_direct(lotes: Optional[List[str]] = None, limit: Optional[int] = None)
         raise RuntimeError("SPLITTER_BASE_URL não definido no .env para modos pull.")
 
     pull_ep = f"{SPLITTER_BASE_URL}/api/splitter/pull-batch"
-    log(f"⚡ (DIRECT) Solicitando {limit} arquivos... lotes={lotes or 'todos'}")
-    r = requests.post(pull_ep, json={"limit": limit, "lotes": lotes}, headers=HEADERS, timeout=60)
+    payload = {"limit": limit, "lotes": lotes}
+    if date_filter:
+        payload.update(date_filter)
+
+    log(f"⚡ (DIRECT) Solicitando {limit} arquivos... lotes={lotes or 'todos'} filtros={date_filter or 'nenhum'}")
+    r = requests.post(pull_ep, json=payload, headers=HEADERS, timeout=90)
     r.raise_for_status()
     data = r.json()
     files = data.get("files", [])
@@ -185,8 +201,8 @@ def _pull_direct(lotes: Optional[List[str]] = None, limit: Optional[int] = None)
     for f in files:
         lote = f.get("lote") or f.get("dir") or ""
         nome = f["nome"]
-        url  = f.get("sas_url") or f.get("url")
-        sha  = f.get("sha256")
+        url = f.get("sas_url") or f.get("url")
+        sha = f.get("sha256")
         size = f.get("tamanho") or f.get("size")
 
         dest = LOCAL_RECEIVED / lote / nome
@@ -217,25 +233,33 @@ def _pull_direct(lotes: Optional[List[str]] = None, limit: Optional[int] = None)
 # =========================================================
 # 🎯 Função chamada pelo painel/cron
 # =========================================================
-def baixar_output(nsa_hint: str = "000", lotes: Optional[List[str]] = None, limit: Optional[int] = None) -> Dict[str, Any]:
+def baixar_output(
+    nsa_hint: str = "000",
+    lotes: Optional[List[str]] = None,
+    limit: Optional[int] = None,
+    mode: Optional[str] = None,
+    date_filter: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
-    Entrada única usada pelo painel (/api/agente/download) e pelo seu cron local:
-      - DOWNLOAD_MODE=zip     → baixa ZIP consolidado (legado)
-      - DOWNLOAD_MODE=lease   → leasing seguro (recomendado)
-      - DOWNLOAD_MODE=direct  → simples, marca baixado na resposta
-    Parâmetros opcionais para modos pull: lotes, limit
+    Entrada única usada pelo painel (/api/agente/download) e pelo cron local:
+      - mode='zip'     → baixa ZIP consolidado (legado)
+      - mode='lease'   → leasing seguro (recomendado)
+      - mode='direct'  → simples, marca baixado na resposta
+    Parâmetros opcionais:
+      lotes, limit, date_filter={date_from, date_to}
     """
     _ensure_dir(LOCAL_RECEIVED)
+    _mode = (mode or os.getenv("DOWNLOAD_MODE") or DOWNLOAD_MODE).lower()
 
     try:
-        if DOWNLOAD_MODE == "zip":
+        if _mode == "zip":
             return _baixar_zip_consolidado(nsa_hint=nsa_hint)
-        elif DOWNLOAD_MODE == "lease":
-            return _pull_lease(lotes=lotes, limit=limit)
-        elif DOWNLOAD_MODE == "direct":
-            return _pull_direct(lotes=lotes, limit=limit)
+        elif _mode == "lease":
+            return _pull_lease(lotes=lotes, limit=limit, date_filter=date_filter)
+        elif _mode == "direct":
+            return _pull_direct(lotes=lotes, limit=limit, date_filter=date_filter)
         else:
-            msg = f"DOWNLOAD_MODE inválido: {DOWNLOAD_MODE}"
+            msg = f"DOWNLOAD_MODE inválido: {_mode}"
             log(f"❌ {msg}")
             return {"ok": False, "error": msg}
     except Exception as e:
