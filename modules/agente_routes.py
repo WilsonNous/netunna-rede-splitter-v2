@@ -233,3 +233,51 @@ def pull():
     except Exception as e:
         log(f"❌ Erro no pull: {e}")
         return jsonify({"status": "error", "msg": str(e)}), 500
+
+# =========================================================
+# 📦 Download completo de um lote NSA (ZIP)
+# =========================================================
+@agente_bp.route("/download-nsa/<nsa_id>", methods=["GET"])
+def download_nsa(nsa_id):
+    """
+    Gera e retorna um ZIP com todos os arquivos do lote NSA informado.
+    Exemplo: GET /api/agente/download-nsa/066
+    """
+    from flask import send_file
+    import zipfile
+    import io
+    from datetime import datetime
+
+    try:
+        base_output = os.getenv("AGENTE_OUTPUT_DIR") or "/home/site/azurefiles/output"
+        lote_dir = os.path.join(base_output, f"NSA_{nsa_id}")
+
+        if not os.path.exists(lote_dir):
+            log(f"⚠️ Lote NSA_{nsa_id} não encontrado em {base_output}")
+            return jsonify({"ok": False, "msg": f"Lote NSA_{nsa_id} não encontrado."}), 404
+
+        log(f"📦 Gerando ZIP completo para o lote NSA_{nsa_id}...")
+
+        # Cria ZIP em memória
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for root, _, files in os.walk(lote_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, lote_dir)
+                    zipf.write(file_path, arcname)
+        zip_buffer.seek(0)
+
+        zip_name = f"NSA_{nsa_id}_{datetime.now().strftime('%d%m%Y_%H%M%S')}.zip"
+        log(f"✅ ZIP gerado com sucesso: {zip_name}")
+
+        return send_file(
+            zip_buffer,
+            as_attachment=True,
+            download_name=zip_name,
+            mimetype="application/zip"
+        )
+
+    except Exception as e:
+        log(f"❌ Erro ao gerar ZIP para NSA_{nsa_id}: {e}")
+        return jsonify({"ok": False, "msg": str(e)}), 500
