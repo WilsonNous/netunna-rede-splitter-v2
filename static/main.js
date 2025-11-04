@@ -1,5 +1,5 @@
 // ==============================
-// main.js - Netunna REDE Splitter v5.3
+// main.js - Netunna REDE Splitter v5.4
 // ==============================
 
 const HEARTBEAT_MS = 3 * 60 * 1000; // 3 minutos
@@ -137,7 +137,7 @@ async function loadFiles() {
           header.innerHTML = `
             <h3>📦 ${lote} <span class='badge'>${grupos[lote].length}</span></h3>
             <div>
-              <button onclick="baixarNSA('${lote.replace('NSA_', '')}')" title="Baixar todos os arquivos deste lote">⬇️ Lote</button>
+              <button onclick="baixarLoteNSA('${lote.replace('NSA_', '')}')" title="Baixar todos os arquivos deste lote">⬇️ Lote</button>
               <button class='toggle-btn' onclick='toggleLote(this)'>+</button>
             </div>`;
           const content = document.createElement("div");
@@ -244,96 +244,37 @@ function toggleTodos(expandir = true) {
 }
 
 // ------------------------------
-// ⬇️ Download completo de um lote (NSA)
+// 📦 Baixar todos os arquivos de um lote (sem ZIP)
 // ------------------------------
-async function baixarNSA(nsa) {
+async function baixarLoteNSA(nsaId) {
   try {
-    const url = `/api/agente/download-nsa/${nsa}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
+    const resposta = await fetch("/api/scan");
+    const data = await resposta.json();
 
-    const blob = await response.blob();
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `NSA_${nsa}.zip`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
-
-    console.log(`✅ Download do lote NSA_${nsa} iniciado.`);
-  } catch (err) {
-    console.error(`❌ Erro ao baixar lote NSA_${nsa}:`, err);
-    alert(`Erro ao baixar lote NSA_${nsa}: ${err.message}`);
-  }
-}
-
-// ------------------------------
-// DOWNLOAD ALL
-// ------------------------------
-async function downloadAll() {
-  try {
-    const resp = await fetch("/api/download-all");
-    const data = await resp.json();
-    if (data.zips?.length) {
-      alert(`Foram gerados ${data.zips.length} arquivos ZIP.`);
-      data.zips.forEach((z) => {
-        const a = document.createElement("a");
-        a.href = `/zips/${z}`;
-        a.download = z;
-        a.click();
-      });
-    } else {
-      alert("Nenhum ZIP foi gerado.");
+    const arquivosDoLote = data.output.filter(a => a.lote === `NSA_${nsaId}`);
+    if (arquivosDoLote.length === 0) {
+      alert(`Nenhum arquivo encontrado para o lote NSA_${nsaId}.`);
+      return;
     }
-  } catch {
-    alert("Erro ao gerar os ZIPs.");
+
+    if (!confirm(`Baixar ${arquivosDoLote.length} arquivos do lote NSA_${nsaId}?`)) return;
+
+    for (const item of arquivosDoLote) {
+      const url = `/api/download/${encodeURIComponent(item.nome)}`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = item.nome;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      await new Promise(r => setTimeout(r, 500)); // intervalo leve entre downloads
+    }
+
+    alert(`✅ Lote NSA_${nsaId} baixado com sucesso (${arquivosDoLote.length} arquivos).`);
+  } catch (e) {
+    console.error("❌ Erro ao baixar lote:", e);
+    alert("Erro ao baixar lote. Verifique os logs no console.");
   }
-}
-
-// ==============================
-// 🧩 Validação de Integridade
-// ==============================
-function abrirValidador() {
-  const tipo = prompt("Informe o tipo de arquivo (EEVC / EEVD / EEFI):");
-  if (!tipo) return;
-
-  const arquivoMae = prompt(
-    "Informe o nome do arquivo mãe (ex: VENTUNOFORTE_20770677_VC_05102025041.TXT):"
-  );
-  if (!arquivoMae) return;
-
-  const nsa = prompt("Informe o número do lote (ex: 041):");
-  if (!nsa) return;
-
-  const validateDiv = document.getElementById("validateResult");
-  if (validateDiv) {
-    validateDiv.innerHTML = `🔎 Validando <b>${arquivoMae}</b> (${tipo})...`;
-    validateDiv.style.color = "#555";
-  }
-
-  fetch("/api/validate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tipo, arquivo_mae: arquivoMae, nsa }),
-  })
-    .then((r) => r.json())
-    .then((d) => {
-      const msg = d.ok
-        ? `✅ ${d.mensagem}<br>📄 Relatório: <code>${d.relatorio}</code>`
-        : `⚠️ ${d.mensagem}`;
-      if (validateDiv) {
-        validateDiv.innerHTML = msg;
-        validateDiv.style.color = d.ok ? "green" : "#c00";
-      } else alert(msg);
-    })
-    .catch((err) => {
-      const msg = `❌ Erro ao validar: ${err}`;
-      if (validateDiv) {
-        validateDiv.innerHTML = msg;
-        validateDiv.style.color = "#c00";
-      } else alert(msg);
-    });
 }
 
 // ------------------------------
