@@ -21,9 +21,7 @@ setInterval(atualizarRelogio, 60000);
 // ------------------------------
 function parseBRDateTime(s) {
   if (!s) return null;
-  const m = s.match(
-    /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/
-  );
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
   if (!m) return null;
   const [_, dd, mm, yyyy, HH, MM, SS] = m;
   return new Date(yyyy, mm - 1, dd, HH, MM, SS);
@@ -110,9 +108,7 @@ async function loadFiles() {
         tbodyIn.appendChild(tr);
       });
     }
-    document.getElementById(
-      "inputCount"
-    ).textContent = `📊 Exibindo ${scan.input?.length || 0} registros.`;
+    document.getElementById("inputCount").textContent = `📊 Exibindo ${scan.input?.length || 0} registros.`;
 
     // ---------- ARQUIVOS GERADOS ----------
     const outputContainer = document.getElementById("outputContainer");
@@ -138,8 +134,12 @@ async function loadFiles() {
           div.classList.add("lote-grupo");
           const header = document.createElement("div");
           header.classList.add("lote-header");
-          header.innerHTML = `<h3>📦 ${lote} <span class='badge'>${grupos[lote].length}</span></h3>
-                            <button class='toggle-btn' onclick='toggleLote(this)'>+</button>`;
+          header.innerHTML = `
+            <h3>📦 ${lote} <span class='badge'>${grupos[lote].length}</span></h3>
+            <div>
+              <button onclick="baixarNSA('${lote.replace('NSA_', '')}')" title="Baixar todos os arquivos deste lote">⬇️ Lote</button>
+              <button class='toggle-btn' onclick='toggleLote(this)'>+</button>
+            </div>`;
           const content = document.createElement("div");
           content.classList.add("lote-content");
           content.innerHTML = `
@@ -151,9 +151,7 @@ async function loadFiles() {
                   (a) => `<tr>
                   <td class='mono'>${a.nome}</td>
                   <td>${a.data_hora}</td>
-                  <td><a href='/api/download/${encodeURIComponent(
-                    a.nome
-                  )}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td>
+                  <td><a href='/api/download/${encodeURIComponent(a.nome)}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td>
                 </tr>`
                 )
                 .join("")}
@@ -176,13 +174,7 @@ async function loadFiles() {
         .slice()
         .reverse()
         .forEach((l) => {
-          const integridade =
-            l.status?.toUpperCase() === "OK"
-              ? "OK"
-              : l.status?.toUpperCase() === "FALHA"
-              ? "FALHA"
-              : l.status || "—";
-
+          const integridade = l.status?.toUpperCase() || "—";
           let statusClass = "";
           let icone = "";
           if (integridade === "OK") {
@@ -212,14 +204,10 @@ async function loadFiles() {
           tbodyLog.appendChild(tr);
         });
     }
-    document.getElementById(
-      "logCount"
-    ).textContent = `📊 Exibindo ${logs?.length || 0} registros.`;
+    document.getElementById("logCount").textContent = `📊 Exibindo ${logs?.length || 0} registros.`;
   } catch (err) {
     console.error("Erro ao carregar dados:", err);
-    document.getElementById(
-      "statusBar"
-    ).innerHTML = `<span></span> ⚠️ Erro ao consultar API`;
+    document.getElementById("statusBar").innerHTML = `<span></span> ⚠️ Erro ao consultar API`;
   }
 }
 
@@ -253,6 +241,31 @@ function toggleTodos(expandir = true) {
       btn.textContent = "+";
     }
   });
+}
+
+// ------------------------------
+// ⬇️ Download completo de um lote (NSA)
+// ------------------------------
+async function baixarNSA(nsa) {
+  try {
+    const url = `/api/agente/download-nsa/${nsa}`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
+
+    const blob = await response.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `NSA_${nsa}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+
+    console.log(`✅ Download do lote NSA_${nsa} iniciado.`);
+  } catch (err) {
+    console.error(`❌ Erro ao baixar lote NSA_${nsa}:`, err);
+    alert(`Erro ao baixar lote NSA_${nsa}: ${err.message}`);
+  }
 }
 
 // ------------------------------
