@@ -20,7 +20,7 @@ from modules.processador_integridade import processar_integridade
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'))
 
 # ✅ Registrar Blueprint do Agente
-from modules.agente_routes import agente_bp
+from agente.agente_routes import agente_bp
 app.register_blueprint(agente_bp, url_prefix="/api/agente")
 
 # --- Diretórios persistentes (Azure Files) ---
@@ -281,5 +281,9 @@ def api_scan():
 # ==============================
 # Execução
 # ==============================
+print("\n🔍 Rotas registradas no Flask:")
+for rule in app.url_map.iter_rules():
+    print(f"  {rule.endpoint:30s} -> {rule}")
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
