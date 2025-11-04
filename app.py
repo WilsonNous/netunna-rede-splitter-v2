@@ -281,9 +281,10 @@ def api_scan():
 # ==============================
 # Execução
 # ==============================
-print("\n🔍 Rotas registradas no Flask:")
-for rule in app.url_map.iter_rules():
-    print(f"  {rule.endpoint:30s} -> {rule}")
-
 if __name__ == "__main__":
+    print("\n🔍 Rotas registradas no Flask:")
+    for rule in app.url_map.iter_rules():
+        print(f"  {rule.endpoint:30s} -> {rule}")
+        
     app.run(host="0.0.0.0", port=10000)
+
