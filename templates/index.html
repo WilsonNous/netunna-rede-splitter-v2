@@ -124,13 +124,21 @@
     }
     .lote-header {
       background:#fff7f0; display:flex; justify-content:space-between;
-      align-items:center; padding:6px 12px; cursor:pointer; border-bottom:1px solid #ffe0b2;
+      align-items:center; padding:6px 12px; border-bottom:1px solid #ffe0b2;
     }
-    .lote-header h3 { margin:0; font-size:15px; color:#ff6d00; }
+    .lote-header h3 { margin:0; font-size:15px; color:#ff6d00; display:flex; align-items:center; gap:6px; }
     .lote-header .badge {
       background:#ff9100; color:#fff; border-radius:10px;
-      padding:2px 8px; font-size:12px; margin-left:6px;
+      padding:2px 8px; font-size:12px;
     }
+    .lote-actions {
+      display:flex; align-items:center; gap:8px;
+    }
+    .lote-actions button {
+      background:#ff6d00; border:none; border-radius:6px;
+      padding:5px 10px; color:#fff; font-size:13px; cursor:pointer;
+    }
+    .lote-actions button:hover { background:#e55f00; transform:scale(1.05); }
     .toggle-btn {
       background:none; border:none; color:#ff6d00;
       font-size:20px; font-weight:bold; cursor:pointer; transition:transform 0.2s;
