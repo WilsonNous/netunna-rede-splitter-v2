@@ -254,8 +254,9 @@ def process_eevc(input_path: str, output_dir: str, error_dir: str = "erro") -> d
     os.makedirs(subdir, exist_ok=True)
 
     for pv, blocos in grupos.items():
-        # Ajuste de escala: EEVC armazena valores com 1 casa decimal extra
-        total_liquido_rv = totais_pv[pv]["liquido_rv"] // 10
+        # ✅ CORREÇÃO DE ESCALA: usa round() para evitar perda acumulada de centavos
+        # EEVC armazena valores com 1 casa decimal extra; divisão por 10 com arredondamento
+        total_liquido_rv = round(totais_pv[pv]["liquido_rv"] / 10)
         soma_total_processado += total_liquido_rv
 
         # Reescreve header com PV filho
