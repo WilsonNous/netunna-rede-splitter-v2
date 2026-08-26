@@ -1,5 +1,7 @@
 import os, sys
+import hmac
 from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
+from werkzeug.utils import secure_filename
 import csv, io, zipfile
 from datetime import datetime
 import pytz
@@ -43,6 +45,112 @@ for name, path in {
 
 # ✅ Timezone Brasil
 TZ_BR = pytz.timezone("America/Sao_Paulo")
+
+# ==============================
+# API v1: autenticação / automação
+# ==============================
+def _api_v1_authorized():
+    """Valida a credencial enviada em Authorization: Bearer ou X-API-Key."""
+    expected = (os.getenv("SPLITTER_API_KEY") or "").strip()
+    if not expected:
+        # Falha fechada: API de automação não funciona sem chave configurada.
+        return False
+
+    bearer = request.headers.get("Authorization", "")
+    supplied = ""
+    if bearer.lower().startswith("bearer "):
+        supplied = bearer[7:].strip()
+    if not supplied:
+        supplied = request.headers.get("X-API-Key", "").strip()
+
+    return bool(supplied) and hmac.compare_digest(supplied, expected)
+
+
+def _require_api_v1_key():
+    if not _api_v1_authorized():
+        return jsonify({"ok": False, "erro": "Não autorizado."}), 401
+    return None
+
+
+@app.route("/api/v1/health", methods=["GET"])
+def api_v1_health():
+    """Healthcheck sem autenticação; não expõe dados ou arquivos."""
+    return jsonify({
+        "ok": True,
+        "service": "Netunna REDE Splitter",
+        "api": "v1",
+        "status": "online"
+    }), 200
+
+
+@app.route("/api/v1/upload", methods=["POST"])
+def api_v1_upload():
+    """
+    Endpoint máquina-a-máquina para o agente Windows.
+    Recebe o arquivo mãe, processa e retorna tipo, NSA, lote e arquivos gerados.
+    A interface web continua usando /api/upload sem alteração.
+    """
+    denied = _require_api_v1_key()
+    if denied:
+        return denied
+
+    if "file" not in request.files:
+        return jsonify({"ok": False, "erro": "Nenhum arquivo enviado no campo 'file'."}), 400
+
+    uploaded = request.files["file"]
+    filename = secure_filename(uploaded.filename or "")
+    if not filename:
+        return jsonify({"ok": False, "erro": "Nome de arquivo vazio ou inválido."}), 400
+
+    save_path = os.path.join(INPUT_DIR, filename)
+    uploaded.save(save_path)
+    print(f"📤 [API v1] Arquivo recebido: {filename}")
+
+    try:
+        resultado = process_file(save_path, OUTPUT_DIR, ERROR_DIR)
+        if not isinstance(resultado, dict):
+            return jsonify({"ok": False, "erro": "Resposta inválida do processador."}), 500
+
+        if resultado.get("status") == "ERRO" or resultado.get("erro"):
+            return jsonify({
+                "ok": False,
+                "arquivo_mae": filename,
+                "erro": resultado.get("erro") or resultado.get("detalhe") or "Falha no processamento.",
+                "resultado": resultado
+            }), 422
+
+        tipo = resultado.get("tipo")
+        nsa = str(resultado.get("nsa") or "").strip()
+        lote = f"NSA_{nsa}" if nsa else None
+        gerados = resultado.get("gerados") or []
+
+        integridade = None
+        if tipo in ("EEVC", "EEVD", "EEFI") and nsa:
+            pasta_filhos = os.path.join(OUTPUT_DIR, lote)
+            try:
+                integridade = processar_integridade(tipo, save_path, pasta_filhos)
+                print(f"✅ [API v1] Integridade: {integridade.get('mensagem')}")
+            except Exception as ve:
+                integridade = {"ok": False, "mensagem": str(ve)}
+                print(f"⚠️ [API v1] Erro na validação de integridade: {ve}")
+
+        return jsonify({
+            "ok": True,
+            "mensagem": "Arquivo recebido e processado.",
+            "arquivo_mae": filename,
+            "tipo": tipo,
+            "nsa": nsa,
+            "lote": lote,
+            "quantidade_gerados": len(gerados),
+            "gerados": gerados,
+            "integridade": integridade,
+            "resultado": resultado
+        }), 200
+
+    except Exception as e:
+        print(f"❌ [API v1] Erro ao processar {filename}: {e}")
+        return jsonify({"ok": False, "arquivo_mae": filename, "erro": str(e)}), 500
+
 
 # ==============================
 # Página principal
