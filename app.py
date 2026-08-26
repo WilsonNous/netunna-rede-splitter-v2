@@ -1,5 +1,9 @@
 import os, sys
 import hmac
+import json
+import hashlib
+import secrets
+import shutil
 from flask import Flask, request, jsonify, render_template, send_from_directory, send_file
 from werkzeug.utils import secure_filename
 import csv, io, zipfile
@@ -50,10 +54,9 @@ TZ_BR = pytz.timezone("America/Sao_Paulo")
 # API v1: autenticação / automação
 # ==============================
 def _api_v1_authorized():
-    """Valida a credencial enviada em Authorization: Bearer ou X-API-Key."""
+    """Valida Authorization: Bearer ou X-API-Key."""
     expected = (os.getenv("SPLITTER_API_KEY") or "").strip()
     if not expected:
-        # Falha fechada: API de automação não funciona sem chave configurada.
         return False
 
     bearer = request.headers.get("Authorization", "")
@@ -72,9 +75,71 @@ def _require_api_v1_key():
     return None
 
 
+def _safe_cliente(value):
+    """Identificador interno do cliente, sem amarrar o Splitter a um cliente específico."""
+    raw = (value or "default").strip().lower()
+    safe = "".join(ch if ch.isalnum() or ch in ("-", "_") else "-" for ch in raw)
+    safe = safe.strip("-_")
+    return safe[:60] or "default"
+
+
+def _sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _new_batch_id():
+    stamp = datetime.now(TZ_BR).strftime("%Y%m%d_%H%M%S")
+    return f"{stamp}_{secrets.token_hex(4)}"
+
+
+def _batch_root(cliente, batch_id):
+    return os.path.join(OUTPUT_DIR, "_api_batches", cliente, batch_id)
+
+
+def _batch_input_root(cliente, batch_id):
+    return os.path.join(INPUT_DIR, "_api_batches", cliente, batch_id)
+
+
+def _batch_error_root(cliente, batch_id):
+    return os.path.join(ERROR_DIR, "_api_batches", cliente, batch_id)
+
+
+def _manifest_path(cliente, batch_id):
+    return os.path.join(_batch_root(cliente, batch_id), "manifest.json")
+
+
+def _load_manifest(cliente, batch_id):
+    path = _manifest_path(cliente, batch_id)
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _files_metadata(paths, batch_root):
+    items = []
+    for path in paths:
+        path = os.path.abspath(str(path))
+        if not os.path.isfile(path):
+            continue
+        # Garante que o arquivo pertença ao batch atual.
+        if os.path.commonpath([path, os.path.abspath(batch_root)]) != os.path.abspath(batch_root):
+            continue
+        items.append({
+            "nome": os.path.basename(path),
+            "relativo": os.path.relpath(path, batch_root).replace(os.sep, "/"),
+            "tamanho": os.path.getsize(path),
+            "sha256": _sha256_file(path),
+        })
+    return items
+
+
 @app.route("/api/v1/health", methods=["GET"])
 def api_v1_health():
-    """Healthcheck sem autenticação; não expõe dados ou arquivos."""
     return jsonify({
         "ok": True,
         "service": "Netunna REDE Splitter",
@@ -86,9 +151,14 @@ def api_v1_health():
 @app.route("/api/v1/upload", methods=["POST"])
 def api_v1_upload():
     """
-    Endpoint máquina-a-máquina para o agente Windows.
-    Recebe o arquivo mãe, processa e retorna tipo, NSA, lote e arquivos gerados.
-    A interface web continua usando /api/upload sem alteração.
+    API máquina-a-máquina.
+
+    Campos multipart:
+      file     -> arquivo mãe da REDE (obrigatório)
+      cliente  -> identificador lógico, ex.: ventuno (opcional)
+
+    Cada upload recebe um batch_id exclusivo. Assim, NSA repetido e clientes
+    diferentes nunca compartilham a mesma pasta de processamento.
     """
     denied = _require_api_v1_key()
     if denied:
@@ -102,18 +172,29 @@ def api_v1_upload():
     if not filename:
         return jsonify({"ok": False, "erro": "Nome de arquivo vazio ou inválido."}), 400
 
-    save_path = os.path.join(INPUT_DIR, filename)
+    cliente = _safe_cliente(request.form.get("cliente"))
+    batch_id = _new_batch_id()
+    input_root = _batch_input_root(cliente, batch_id)
+    batch_root = _batch_root(cliente, batch_id)
+    error_root = _batch_error_root(cliente, batch_id)
+    os.makedirs(input_root, exist_ok=True)
+    os.makedirs(batch_root, exist_ok=True)
+    os.makedirs(error_root, exist_ok=True)
+
+    save_path = os.path.join(input_root, filename)
     uploaded.save(save_path)
-    print(f"📤 [API v1] Arquivo recebido: {filename}")
+    print(f"📤 [API v1] cliente={cliente} batch={batch_id} arquivo={filename}")
 
     try:
-        resultado = process_file(save_path, OUTPUT_DIR, ERROR_DIR)
+        resultado = process_file(save_path, batch_root, error_root)
         if not isinstance(resultado, dict):
             return jsonify({"ok": False, "erro": "Resposta inválida do processador."}), 500
 
         if resultado.get("status") == "ERRO" or resultado.get("erro"):
             return jsonify({
                 "ok": False,
+                "cliente": cliente,
+                "batch_id": batch_id,
                 "arquivo_mae": filename,
                 "erro": resultado.get("erro") or resultado.get("detalhe") or "Falha no processamento.",
                 "resultado": resultado
@@ -122,34 +203,113 @@ def api_v1_upload():
         tipo = resultado.get("tipo")
         nsa = str(resultado.get("nsa") or "").strip()
         lote = f"NSA_{nsa}" if nsa else None
-        gerados = resultado.get("gerados") or []
+        gerados = [str(x) for x in (resultado.get("gerados") or [])]
+
+        # Se o processador não retornar caminhos, inspeciona apenas o batch atual.
+        if not gerados and lote:
+            pasta = os.path.join(batch_root, lote)
+            if os.path.isdir(pasta):
+                gerados = [
+                    os.path.join(pasta, f) for f in sorted(os.listdir(pasta))
+                    if os.path.isfile(os.path.join(pasta, f))
+                ]
 
         integridade = None
         if tipo in ("EEVC", "EEVD", "EEFI") and nsa:
-            pasta_filhos = os.path.join(OUTPUT_DIR, lote)
+            pasta_filhos = os.path.join(batch_root, lote)
             try:
                 integridade = processar_integridade(tipo, save_path, pasta_filhos)
-                print(f"✅ [API v1] Integridade: {integridade.get('mensagem')}")
+                print(f"✅ [API v1] Integridade batch={batch_id}: {integridade.get('mensagem')}")
             except Exception as ve:
                 integridade = {"ok": False, "mensagem": str(ve)}
-                print(f"⚠️ [API v1] Erro na validação de integridade: {ve}")
+                print(f"⚠️ [API v1] Erro na integridade batch={batch_id}: {ve}")
+
+        arquivos = _files_metadata(gerados, batch_root)
+        manifest = {
+            "api": "v1",
+            "cliente": cliente,
+            "batch_id": batch_id,
+            "arquivo_mae": filename,
+            "arquivo_mae_sha256": _sha256_file(save_path),
+            "tipo": tipo,
+            "nsa": nsa,
+            "lote": lote,
+            "criado_em": datetime.now(TZ_BR).isoformat(),
+            "quantidade_gerados": len(arquivos),
+            "arquivos": arquivos,
+            "integridade": integridade,
+            "status": "OK",
+        }
+        with open(_manifest_path(cliente, batch_id), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
 
         return jsonify({
             "ok": True,
             "mensagem": "Arquivo recebido e processado.",
-            "arquivo_mae": filename,
-            "tipo": tipo,
-            "nsa": nsa,
-            "lote": lote,
-            "quantidade_gerados": len(gerados),
-            "gerados": gerados,
-            "integridade": integridade,
+            **manifest,
+            "files_url": f"/api/v1/batches/{batch_id}/files?cliente={cliente}",
+            "download_url": f"/api/v1/batches/{batch_id}/download?cliente={cliente}",
             "resultado": resultado
         }), 200
 
     except Exception as e:
-        print(f"❌ [API v1] Erro ao processar {filename}: {e}")
-        return jsonify({"ok": False, "arquivo_mae": filename, "erro": str(e)}), 500
+        print(f"❌ [API v1] cliente={cliente} batch={batch_id}: {e}")
+        return jsonify({
+            "ok": False,
+            "cliente": cliente,
+            "batch_id": batch_id,
+            "arquivo_mae": filename,
+            "erro": str(e)
+        }), 500
+
+
+@app.route("/api/v1/batches/<batch_id>/files", methods=["GET"])
+def api_v1_batch_files(batch_id):
+    denied = _require_api_v1_key()
+    if denied:
+        return denied
+    cliente = _safe_cliente(request.args.get("cliente"))
+    manifest = _load_manifest(cliente, batch_id)
+    if not manifest:
+        return jsonify({"ok": False, "erro": "Batch não encontrado."}), 404
+    return jsonify({"ok": True, **manifest}), 200
+
+
+@app.route("/api/v1/batches/<batch_id>/download", methods=["GET"])
+def api_v1_batch_download(batch_id):
+    """Baixa somente os filhos daquele batch, nunca todo o OUTPUT_DIR."""
+    denied = _require_api_v1_key()
+    if denied:
+        return denied
+    cliente = _safe_cliente(request.args.get("cliente"))
+    manifest = _load_manifest(cliente, batch_id)
+    if not manifest:
+        return jsonify({"ok": False, "erro": "Batch não encontrado."}), 404
+
+    batch_root = _batch_root(cliente, batch_id)
+    memory_file = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for item in manifest.get("arquivos", []):
+            rel = item.get("relativo") or ""
+            file_path = os.path.abspath(os.path.join(batch_root, rel))
+            if os.path.commonpath([file_path, os.path.abspath(batch_root)]) != os.path.abspath(batch_root):
+                continue
+            if os.path.isfile(file_path):
+                zipf.write(file_path, os.path.basename(file_path))
+                count += 1
+
+    if count == 0:
+        return jsonify({"ok": False, "erro": "Nenhum arquivo filho disponível neste batch."}), 404
+
+    memory_file.seek(0)
+    zip_name = f"{cliente}_{manifest.get('lote') or 'lote'}_{batch_id}.zip"
+    return send_file(
+        memory_file,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=zip_name
+    )
 
 
 # ==============================
