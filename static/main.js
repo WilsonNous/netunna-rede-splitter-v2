@@ -100,11 +100,11 @@ async function loadFiles() {
     const tbodyIn = document.querySelector("#inputTable tbody");
     tbodyIn.innerHTML = "";
     if (!scan.input?.length) {
-      tbodyIn.innerHTML = `<tr><td colspan="2" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;
+      tbodyIn.innerHTML = `<tr><td colspan="3" style="text-align:center;">Nenhum arquivo enviado.</td></tr>`;
     } else {
       scan.input.forEach((i) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td class='mono'>${i.nome}</td><td>${i.data_hora}</td>`;
+        tr.innerHTML = `<td>${(i.cliente || "ventuno").toUpperCase()}</td><td class='mono'>${i.nome}</td><td>${i.data_hora}</td>`;
         tbodyIn.appendChild(tr);
       });
     }
@@ -121,23 +121,29 @@ async function loadFiles() {
     } else {
       const grupos = {};
       scan.output.forEach((i) => {
+        const cliente = i.cliente || "ventuno";
         const lote = i.lote || "NSA_000";
-        if (!grupos[lote]) grupos[lote] = [];
-        grupos[lote].push(i);
+        const chave = `${cliente}::${lote}`;
+        if (!grupos[chave]) grupos[chave] = { cliente, lote, arquivos: [] };
+        grupos[chave].arquivos.push(i);
       });
-      resumo.textContent = `📊 ${Object.keys(grupos).length} lotes processados — total de ${scan.output.length} arquivos.`;
+      resumo.textContent = `📊 ${Object.keys(grupos).length} lotes/cliente processados — total de ${scan.output.length} arquivos.`;
 
       Object.keys(grupos)
         .sort()
-        .forEach((lote) => {
+        .forEach((chave) => {
+          const grupo = grupos[chave];
+          const cliente = grupo.cliente;
+          const lote = grupo.lote;
+          const arquivos = grupo.arquivos;
           const div = document.createElement("div");
           div.classList.add("lote-grupo");
           const header = document.createElement("div");
           header.classList.add("lote-header");
           header.innerHTML = `
-            <h3>📦 ${lote} <span class='badge'>${grupos[lote].length}</span></h3>
+            <h3>🏢 ${cliente.toUpperCase()} &nbsp; 📦 ${lote} <span class='badge'>${arquivos.length}</span></h3>
             <div>
-              <button onclick="baixarLoteNSA('${lote.replace('NSA_', '')}')" title="Baixar todos os arquivos deste lote">⬇️ Lote</button>
+              <button onclick="baixarLoteNSA('${cliente}', '${lote.replace('NSA_', '')}')" title="Baixar todos os arquivos deste lote">⬇️ Lote</button>
               <button class='toggle-btn' onclick='toggleLote(this)'>+</button>
             </div>`;
           const content = document.createElement("div");
@@ -146,12 +152,12 @@ async function loadFiles() {
           <table>
             <thead><tr><th>Arquivo</th><th>Data/Hora</th><th>Ação</th></tr></thead>
             <tbody>
-              ${grupos[lote]
+              ${arquivos
                 .map(
                   (a) => `<tr>
                   <td class='mono'>${a.nome}</td>
                   <td>${a.data_hora}</td>
-                  <td><a href='/api/download/${encodeURIComponent(a.nome)}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td>
+                  <td><a href='${a.download_url || (`/api/download/${encodeURIComponent(a.nome)}?cliente=${encodeURIComponent(cliente)}`)}' target='_blank' style='color:#ff6d00;text-decoration:none;'>⬇️ Baixar</a></td>
                 </tr>`
                 )
                 .join("")}
@@ -246,31 +252,33 @@ function toggleTodos(expandir = true) {
 // ------------------------------
 // 📦 Baixar todos os arquivos de um lote (sem ZIP)
 // ------------------------------
-async function baixarLoteNSA(nsaId) {
+async function baixarLoteNSA(cliente, nsaId) {
   try {
     const resposta = await fetch("/api/scan");
     const data = await resposta.json();
 
-    const arquivosDoLote = data.output.filter(a => a.lote === `NSA_${nsaId}`);
+    const arquivosDoLote = data.output.filter(
+      a => (a.cliente || "ventuno") === cliente && a.lote === `NSA_${nsaId}`
+    );
     if (arquivosDoLote.length === 0) {
-      alert(`Nenhum arquivo encontrado para o lote NSA_${nsaId}.`);
+      alert(`Nenhum arquivo encontrado para ${cliente.toUpperCase()} / NSA_${nsaId}.`);
       return;
     }
 
-    if (!confirm(`Baixar ${arquivosDoLote.length} arquivos do lote NSA_${nsaId}?`)) return;
+    if (!confirm(`Baixar ${arquivosDoLote.length} arquivos de ${cliente.toUpperCase()} / NSA_${nsaId}?`)) return;
 
     for (const item of arquivosDoLote) {
-      const url = `/api/download/${encodeURIComponent(item.nome)}`;
+      const url = item.download_url || `/api/download/${encodeURIComponent(item.nome)}?cliente=${encodeURIComponent(cliente)}`;
       const a = document.createElement("a");
       a.href = url;
       a.download = item.nome;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      await new Promise(r => setTimeout(r, 500)); // intervalo leve entre downloads
+      await new Promise(r => setTimeout(r, 500));
     }
 
-    alert(`✅ Lote NSA_${nsaId} baixado com sucesso (${arquivosDoLote.length} arquivos).`);
+    alert(`✅ ${cliente.toUpperCase()} / NSA_${nsaId} baixado com sucesso (${arquivosDoLote.length} arquivos).`);
   } catch (e) {
     console.error("❌ Erro ao baixar lote:", e);
     alert("Erro ao baixar lote. Verifique os logs no console.");
