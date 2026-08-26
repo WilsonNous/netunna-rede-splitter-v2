@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 import csv, io, zipfile
 from datetime import datetime
 import pytz
+from urllib.parse import quote
 
 # --- Ajuste de path para o Azure ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,8 +36,24 @@ INPUT_DIR  = os.path.join(BASE_DIR, "input")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 ERROR_DIR  = os.path.join(BASE_DIR, "erro")
 LOG_DIR    = os.path.join(BASE_DIR, "logs")
-for d in [INPUT_DIR, OUTPUT_DIR, ERROR_DIR, LOG_DIR]:
+CLIENTS_DIR = os.path.join(BASE_DIR, "clientes")
+DEFAULT_CLIENT_ID = os.getenv("DEFAULT_CLIENT_ID", "ventuno").strip().lower() or "ventuno"
+LEGACY_CLIENT_ID = os.getenv("LEGACY_CLIENT_ID", DEFAULT_CLIENT_ID).strip().lower() or DEFAULT_CLIENT_ID
+for d in [INPUT_DIR, OUTPUT_DIR, ERROR_DIR, LOG_DIR, CLIENTS_DIR]:
     os.makedirs(d, exist_ok=True)
+
+def _client_paths(cliente):
+    cliente = _safe_cliente(cliente)
+    root = os.path.join(CLIENTS_DIR, cliente)
+    paths = {
+        "root": root,
+        "input": os.path.join(root, "input"),
+        "output": os.path.join(root, "output"),
+        "erro": os.path.join(root, "erro"),
+    }
+    for path in paths.values():
+        os.makedirs(path, exist_ok=True)
+    return paths
 
 print("📂 Diretórios configurados (persistentes):")
 for name, path in {
@@ -44,6 +61,7 @@ for name, path in {
     "OUTPUT_DIR": OUTPUT_DIR,
     "ERROR_DIR": ERROR_DIR,
     "LOG_DIR": LOG_DIR,
+    "CLIENTS_DIR": CLIENTS_DIR,
 }.items():
     print(f"   {name} = {path}")
 
@@ -408,14 +426,22 @@ def api_validate():
     if not all([tipo, arquivo_mae, nsa]):
         return jsonify({"ok": False, "mensagem": "Campos obrigatórios: tipo, arquivo_mae, nsa"}), 400
 
-    arquivo_path = os.path.join(INPUT_DIR, arquivo_mae)
-    pasta_filhos = os.path.join(OUTPUT_DIR, f"NSA_{nsa}")
+    cliente = _safe_cliente(data.get("cliente") or DEFAULT_CLIENT_ID)
+    cpaths = _client_paths(cliente)
+    arquivo_path = os.path.join(cpaths["input"], arquivo_mae)
+    pasta_filhos = os.path.join(cpaths["output"], f"NSA_{nsa}")
+
+    # Compatibilidade temporária com o legado anterior à separação por cliente.
+    if not os.path.exists(arquivo_path) and cliente == LEGACY_CLIENT_ID:
+        arquivo_path = os.path.join(INPUT_DIR, arquivo_mae)
+    if not os.path.exists(pasta_filhos) and cliente == LEGACY_CLIENT_ID:
+        pasta_filhos = os.path.join(OUTPUT_DIR, f"NSA_{nsa}")
 
     if not os.path.exists(arquivo_path):
-        return jsonify({"ok": False, "mensagem": f"Arquivo mãe não encontrado: {arquivo_mae}"}), 404
+        return jsonify({"ok": False, "mensagem": f"Arquivo mãe não encontrado: {arquivo_mae}", "cliente": cliente}), 404
 
     if not os.path.exists(pasta_filhos):
-        return jsonify({"ok": False, "mensagem": f"Pasta de filhos não encontrada: {pasta_filhos}"}), 404
+        return jsonify({"ok": False, "mensagem": f"Pasta de filhos não encontrada: {pasta_filhos}", "cliente": cliente}), 404
 
     try:
         resultado = processar_integridade(tipo, arquivo_path, pasta_filhos)
@@ -441,26 +467,39 @@ def get_status():
 # ==============================
 @app.route("/api/download/<filename>", methods=["GET"])
 def download_file(filename):
-    """
-    Permite baixar qualquer arquivo gerado, mesmo dentro das subpastas (NSA_xxx).
-    """
+    """Baixa arquivo individual com suporte ao legado e à estrutura multi-cliente."""
     try:
-        # 1️⃣ Verifica se está diretamente na raiz do output
-        direct_path = os.path.join(OUTPUT_DIR, filename)
-        if os.path.exists(direct_path):
-            return send_from_directory(OUTPUT_DIR, filename, as_attachment=True)
+        cliente_raw = request.args.get("cliente")
+        search_roots = []
 
-        # 2️⃣ Busca recursivamente nas subpastas
-        for root, _, files in os.walk(OUTPUT_DIR):
-            if filename in files:
-                print(f"⬇️ Download localizado: {filename} em {root}")
-                return send_from_directory(root, filename, as_attachment=True)
+        if cliente_raw:
+            cliente = _safe_cliente(cliente_raw)
+            search_roots.append(_client_paths(cliente)["output"])
+            if cliente == LEGACY_CLIENT_ID:
+                search_roots.append(OUTPUT_DIR)
+        else:
+            # Compatibilidade com links antigos: clientes primeiro, legado por último.
+            if os.path.isdir(CLIENTS_DIR):
+                for nome in sorted(os.listdir(CLIENTS_DIR)):
+                    croot = os.path.join(CLIENTS_DIR, nome, "output")
+                    if os.path.isdir(croot):
+                        search_roots.append(croot)
+            search_roots.append(OUTPUT_DIR)
 
-        # 3️⃣ Se não encontrar
+        for base in search_roots:
+            direct_path = os.path.join(base, filename)
+            if os.path.isfile(direct_path):
+                return send_from_directory(base, filename, as_attachment=True)
+
+            for root, dirs, files in os.walk(base):
+                # Nunca expõe batches da API por esta rota legada.
+                dirs[:] = [d for d in dirs if d != "_api_batches"]
+                if filename in files:
+                    print(f"⬇️ Download localizado: {filename} em {root}")
+                    return send_from_directory(root, filename, as_attachment=True)
+
         print(f"⚠️ Download falhou — arquivo não encontrado: {filename}")
-        return jsonify({
-            "erro": f"Arquivo '{filename}' não encontrado em {OUTPUT_DIR} ou subpastas."
-        }), 404
+        return jsonify({"erro": f"Arquivo '{filename}' não encontrado."}), 404
 
     except Exception as e:
         print(f"❌ Erro durante download de {filename}: {e}")
@@ -513,23 +552,35 @@ def api_download_all():
 # ==============================
 @app.route("/api/scan", methods=["GET"])
 def api_scan():
-    """Lista arquivos de entrada e saída agrupados por subpasta NSA_xxx."""
-    result = {"input": [], "output": []}
+    """Lista legado + estrutura multi-cliente sem quebrar o painel durante a migração."""
+    result = {"input": [], "output": [], "clientes": []}
+    seen_input = set()
+    seen_output = set()
 
-    # INPUT
-    if os.path.exists(INPUT_DIR):
-        for f in sorted(os.listdir(INPUT_DIR)):
-            fpath = os.path.join(INPUT_DIR, f)
-            if os.path.isfile(fpath):
-                dt_brasil = datetime.fromtimestamp(os.path.getmtime(fpath), TZ_BR)
-                result["input"].append({
-                    "nome": f,
-                    "data_hora": dt_brasil.strftime("%d/%m/%Y %H:%M:%S")
-                })
+    def add_input(base, cliente, origem):
+        if not os.path.isdir(base):
+            return
+        for f in sorted(os.listdir(base)):
+            fpath = os.path.join(base, f)
+            if not os.path.isfile(fpath):
+                continue
+            key = (cliente, f, os.path.getsize(fpath))
+            if key in seen_input:
+                continue
+            seen_input.add(key)
+            dt_brasil = datetime.fromtimestamp(os.path.getmtime(fpath), TZ_BR)
+            result["input"].append({
+                "nome": f,
+                "cliente": cliente,
+                "origem": origem,
+                "data_hora": dt_brasil.strftime("%d/%m/%Y %H:%M:%S")
+            })
 
-    # OUTPUT
-    if os.path.exists(OUTPUT_DIR):
-        for root, dirs, files in os.walk(OUTPUT_DIR):
+    def add_output(base, cliente, origem):
+        if not os.path.isdir(base):
+            return
+        for root, dirs, files in os.walk(base):
+            dirs[:] = [d for d in dirs if d != "_api_batches"]
             if not files:
                 continue
             lote = os.path.basename(root)
@@ -537,13 +588,40 @@ def api_scan():
                 continue
             for f in sorted(files):
                 fpath = os.path.join(root, f)
+                if not os.path.isfile(fpath):
+                    continue
+                key = (cliente, lote, f, os.path.getsize(fpath))
+                if key in seen_output:
+                    continue
+                seen_output.add(key)
                 dt_brasil = datetime.fromtimestamp(os.path.getmtime(fpath), TZ_BR)
                 result["output"].append({
                     "nome": f,
+                    "cliente": cliente,
+                    "origem": origem,
                     "lote": lote,
-                    "data_hora": dt_brasil.strftime("%d/%m/%Y %H:%M:%S")
+                    "data_hora": dt_brasil.strftime("%d/%m/%Y %H:%M:%S"),
+                    "download_url": f"/api/download/{quote(f, safe='')}?cliente={quote(cliente, safe='')}"
                 })
 
+    # 1) Estrutura nova por cliente.
+    if os.path.isdir(CLIENTS_DIR):
+        for cliente in sorted(os.listdir(CLIENTS_DIR)):
+            croot = os.path.join(CLIENTS_DIR, cliente)
+            if not os.path.isdir(croot):
+                continue
+            result["clientes"].append(cliente)
+            add_input(os.path.join(croot, "input"), cliente, "cliente")
+            add_output(os.path.join(croot, "output"), cliente, "cliente")
+
+    # 2) Legado: durante a transição ele pertence ao cliente definido em LEGACY_CLIENT_ID.
+    if LEGACY_CLIENT_ID not in result["clientes"]:
+        result["clientes"].append(LEGACY_CLIENT_ID)
+    add_input(INPUT_DIR, LEGACY_CLIENT_ID, "legado")
+    add_output(OUTPUT_DIR, LEGACY_CLIENT_ID, "legado")
+
+    result["input"].sort(key=lambda x: (x.get("cliente", ""), x.get("data_hora", ""), x.get("nome", "")))
+    result["output"].sort(key=lambda x: (x.get("cliente", ""), x.get("lote", ""), x.get("nome", "")))
     return jsonify(result)
 
 # ==============================
