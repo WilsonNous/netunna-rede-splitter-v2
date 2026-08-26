@@ -1,59 +1,63 @@
 import os
 import time
 import requests
-import shutil
 from agente.utils import log
 
-# ==============================================================
-# 📦 Configurações de Upload
-# ==============================================================
-
-# 🔹 URL principal do backend Splitter
-UPLOAD_URL = (
-    os.getenv("SPLITTER_API_UPLOAD")
-    or "https://nn-rede-splitter-v3-gzbmdjduhjgketh3.brazilsouth-01.azurewebsites.net/api/upload"
-)
-
-# 🔹 Diretório local de arquivos enviados
-BASE_DIR = os.getenv("BASE_DIR", os.getcwd())
-LOCAL_SENT = os.path.join(BASE_DIR, "enviados")
+SPLITTER_BASE_URL = (os.getenv("SPLITTER_BASE_URL") or "https://nn-rede-splitter-v3-gzbmdjduhjgketh3.brazilsouth-01.azurewebsites.net").rstrip("/")
+UPLOAD_URL = os.getenv("SPLITTER_API_UPLOAD") or f"{SPLITTER_BASE_URL}/api/v1/upload"
+SPLITTER_API_KEY = (os.getenv("SPLITTER_API_KEY") or "").strip()
+REQUEST_TIMEOUT = int(os.getenv("SPLITTER_UPLOAD_TIMEOUT", "300"))
 
 
-# ==============================================================
-# 🚀 Função principal de upload
-# ==============================================================
-def upload_file(file_path: str) -> bool:
-    """
-    Envia o arquivo local para o endpoint /api/upload do Splitter.
-    Se SPLITTER_API_UPLOAD não estiver definido, usa o fallback padrão
-    configurado acima. Faz até 3 tentativas automáticas com delay.
+def _headers():
+    if not SPLITTER_API_KEY:
+        raise RuntimeError("SPLITTER_API_KEY não configurada no agente.")
+    return {"Authorization": f"Bearer {SPLITTER_API_KEY}"}
+
+
+def upload_file(file_path: str, cliente: str = "default") -> dict:
+    """Envia um arquivo à API v1 e retorna o JSON do batch criado.
+
+    O arquivo local NÃO é movido aqui. Ele só deve ser arquivado depois que
+    todos os filhos forem baixados e gravados com sucesso na pasta do SMEDI.
     """
     filename = os.path.basename(file_path)
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(file_path)
 
-    if not UPLOAD_URL or not UPLOAD_URL.startswith(("http://", "https://")):
-        log(f"❌ URL inválida ou não configurada: {UPLOAD_URL}")
-        return False
+    log(f"📤 [{cliente}] Enviando {filename} para {UPLOAD_URL}...")
 
-    log(f"📤 Enviando {filename} para {UPLOAD_URL}...")
-
+    last_error = None
     for tentativa in range(1, 4):
         try:
             with open(file_path, "rb") as f:
-                files = {"file": (filename, f)}
-                response = requests.post(UPLOAD_URL, files=files, timeout=90)
+                response = requests.post(
+                    UPLOAD_URL,
+                    headers=_headers(),
+                    files={"file": (filename, f)},
+                    data={"cliente": cliente},
+                    timeout=REQUEST_TIMEOUT,
+                )
 
-            if response.status_code == 200:
-                log(f"✅ [{tentativa}/3] {filename} enviado com sucesso.")
-                os.makedirs(LOCAL_SENT, exist_ok=True)
-                shutil.move(file_path, os.path.join(LOCAL_SENT, filename))
-                return True
-            else:
-                log(f"⚠️ [{tentativa}/3] Falha ({response.status_code}): {response.text[:150]}")
+            try:
+                payload = response.json()
+            except Exception:
+                payload = {"erro": response.text[:1000]}
 
+            if response.status_code == 200 and payload.get("ok"):
+                log(
+                    f"✅ [{cliente}] Upload concluído: {filename} | "
+                    f"batch={payload.get('batch_id')} | NSA={payload.get('nsa')} | "
+                    f"filhos={payload.get('quantidade_gerados')}"
+                )
+                return payload
+
+            last_error = f"HTTP {response.status_code}: {payload}"
+            log(f"⚠️ [{cliente}] [{tentativa}/3] {last_error}")
         except Exception as e:
-            log(f"⏱ [{tentativa}/3] Erro ao enviar {filename}: {e}")
+            last_error = str(e)
+            log(f"⏱ [{cliente}] [{tentativa}/3] Erro no upload de {filename}: {e}")
 
         time.sleep(5)
 
-    log(f"❌ Falha final: não foi possível enviar {filename}.")
-    return False
+    raise RuntimeError(f"Falha final no upload de {filename}: {last_error}")

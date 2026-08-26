@@ -1,0 +1,24 @@
+{
+  "clientes": [
+    {
+      "id": "ventuno",
+      "enabled": true,
+      "input_dir": "C:\\EDI\\REDE\\VENTUNO\\entrada",
+      "processed_dir": "C:\\EDI\\REDE\\VENTUNO\\processados",
+      "error_dir": "C:\\EDI\\REDE\\VENTUNO\\erro",
+      "smedi_dir": "C:\\SMEDI\\VENTUNO\\entrada",
+      "filename_contains": ["VENTUNO"],
+      "extensions": []
+    },
+    {
+      "id": "outro-cliente",
+      "enabled": false,
+      "input_dir": "C:\\EDI\\REDE\\OUTRO\\entrada",
+      "processed_dir": "C:\\EDI\\REDE\\OUTRO\\processados",
+      "error_dir": "C:\\EDI\\REDE\\OUTRO\\erro",
+      "smedi_dir": "C:\\SMEDI\\OUTRO\\entrada",
+      "filename_contains": [],
+      "extensions": []
+    }
+  ]
+}
