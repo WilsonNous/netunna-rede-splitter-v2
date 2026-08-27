@@ -30,15 +30,18 @@ LAYOUT_POS = {
     "034": {"tipo": (0, 3), "pv": (3, 12), "valor": (31, 46)},  # Crédito normal (C)
     "036": {"tipo": (0, 3), "pv": (3, 12), "valor": (31, 46)},  # Antecipação (C)
     "043": {"tipo": (0, 3), "pv": (3, 12), "valor": (48, 63)},  # Ajuste a crédito (C)
-    "035": {"tipo": (0, 3), "pv": (3, 12), "valor": (29, 44)},  # Ajuste/NET/Desag. (D)
-    "038": {"tipo": (0, 3), "pv": (3, 12), "valor": (31, 46)},  # Débito via banco (D)
+    # 035 é informativo/detalhe de ocorrência. Neste layout não compõe o trailer 052.
+    "035": {"tipo": (0, 3), "pv": (3, 12), "valor": (29, 44)},
+    "038": {"tipo": (0, 3), "pv": (3, 12), "valor": (31, 46)},  # Ajuste a débito
 
     # 040 – Serasa (NÃO soma financeiramente; mas precisa do PV para roteamento do filho)
     "040": {"tipo": (0, 3), "pv": (3, 12), "valor": (12, 27)},  # valor pode vir 0; ignoramos na soma
 
     # 045 – Cancelamento (entra como DÉBITO); o PV pode variar de posição em alguns arquivos
     # vamos tentar várias faixas conhecidas; a "principal" abaixo:
-    "045": {"tipo": (0, 3), "pv": (3, 12), "valor": (12, 27)},  # alternativas de PV tratadas no extractor
+    # 045 é detalhe complementar/cancelamento e não compõe diretamente o trailer 052.
+    # O valor observado no layout atual fica em 31:46, mas é mantido apenas para auditoria.
+    "045": {"tipo": (0, 3), "pv": (3, 12), "valor": (31, 46)},
 
     # 052 – Trailer (mãe e filhos)
     "052": {
@@ -211,9 +214,13 @@ def process_eefi(file_path: str, output_root: str = "output") -> dict:
                     elif tipo == "043":
                         qtd_aj_cred += 1
                         valor_aj_cred += valor
-                    elif tipo in ("035", "038", "045"):  # 045 = cancelamento -> débito
+                    elif tipo == "038":
                         qtd_aj_deb += 1
                         valor_aj_deb += valor
+                    elif tipo in ("035", "045"):
+                        # Registros informativos/complementares: permanecem no filho,
+                        # mas não entram no fechamento financeiro do trailer 052.
+                        pass
                 elif tipo == "040":
                     # Serasa: incluímos no arquivo do PV, mas NÃO somamos
                     pass
