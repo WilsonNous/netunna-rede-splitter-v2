@@ -156,6 +156,109 @@ def _files_metadata(paths, batch_root):
     return items
 
 
+def _copy_atomic_if_safe(src, dst):
+    """
+    Publica um arquivo sem sobrescrever silenciosamente conteúdo diferente.
+
+    Retornos:
+      "copied"   -> arquivo novo publicado
+      "existing" -> destino já existia com o mesmo SHA-256
+    """
+    src = os.path.abspath(src)
+    dst = os.path.abspath(dst)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+
+    if os.path.exists(dst):
+        if not os.path.isfile(dst):
+            raise RuntimeError(f"Destino existe e não é arquivo: {dst}")
+        if _sha256_file(src) == _sha256_file(dst):
+            return "existing"
+        raise RuntimeError(
+            f"Conflito de publicação: já existe arquivo com mesmo nome e conteúdo diferente: {dst}"
+        )
+
+    tmp = f"{dst}.tmp_{secrets.token_hex(4)}"
+    try:
+        shutil.copy2(src, tmp)
+        if _sha256_file(src) != _sha256_file(tmp):
+            raise RuntimeError(f"Falha de integridade ao publicar: {os.path.basename(src)}")
+        os.replace(tmp, dst)
+        return "copied"
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+def _publish_batch_to_client(cliente, arquivo_mae, gerados, lote, batch_root):
+    """
+    Publica o resultado aprovado do batch na árvore oficial lida pelo painel:
+
+      clientes/<cliente>/input/<arquivo_mae>
+      clientes/<cliente>/output/NSA_xxx/<filhos>
+
+    O batch técnico permanece intacto em output/_api_batches.
+    Antes de copiar qualquer item, faz preflight de conflitos para evitar
+    publicação parcial por colisão de nomes.
+    """
+    cpaths = _client_paths(cliente)
+    if not lote:
+        raise RuntimeError("Não foi possível publicar: lote/NSA não identificado.")
+
+    destino_lote = os.path.join(cpaths["output"], lote)
+    os.makedirs(destino_lote, exist_ok=True)
+
+    itens = []
+
+    # Arquivo mãe
+    mae_dst = os.path.join(cpaths["input"], os.path.basename(arquivo_mae))
+    itens.append((os.path.abspath(arquivo_mae), os.path.abspath(mae_dst), "mae"))
+
+    # Filhos: apenas arquivos pertencentes ao batch atual.
+    batch_abs = os.path.abspath(batch_root)
+    for src in gerados:
+        src_abs = os.path.abspath(str(src))
+        if not os.path.isfile(src_abs):
+            continue
+        if os.path.commonpath([src_abs, batch_abs]) != batch_abs:
+            raise RuntimeError(f"Arquivo filho fora do batch atual: {src_abs}")
+        dst = os.path.join(destino_lote, os.path.basename(src_abs))
+        itens.append((src_abs, os.path.abspath(dst), "filho"))
+
+    # Preflight: verifica todos os conflitos antes de copiar qualquer arquivo.
+    for src, dst, _tipo in itens:
+        if os.path.exists(dst):
+            if not os.path.isfile(dst):
+                raise RuntimeError(f"Destino existe e não é arquivo: {dst}")
+            if _sha256_file(src) != _sha256_file(dst):
+                raise RuntimeError(
+                    f"Conflito de publicação: já existe arquivo com mesmo nome e conteúdo diferente: {dst}"
+                )
+
+    copiados = 0
+    existentes = 0
+    for src, dst, _tipo in itens:
+        status = _copy_atomic_if_safe(src, dst)
+        if status == "copied":
+            copiados += 1
+        else:
+            existentes += 1
+
+    return {
+        "ok": True,
+        "cliente": cliente,
+        "input_dir": cpaths["input"],
+        "output_dir": destino_lote,
+        "itens_total": len(itens),
+        "copiados": copiados,
+        "ja_existentes_mesmo_hash": existentes,
+        "arquivo_mae_publicado": os.path.basename(arquivo_mae),
+        "filhos_publicados": max(0, len(itens) - 1),
+    }
+
+
 @app.route("/api/v1/health", methods=["GET"])
 def api_v1_health():
     return jsonify({
@@ -243,6 +346,33 @@ def api_v1_upload():
                 print(f"⚠️ [API v1] Erro na integridade batch={batch_id}: {ve}")
 
         arquivos = _files_metadata(gerados, batch_root)
+
+        # Só publica na árvore oficial do cliente depois que o processamento e
+        # a integridade estiverem aprovados. Essa é a árvore lida pelo painel.
+        if integridade is not None and integridade.get("ok") is False:
+            return jsonify({
+                "ok": False,
+                "cliente": cliente,
+                "batch_id": batch_id,
+                "arquivo_mae": filename,
+                "erro": integridade.get("mensagem") or "Falha na validação de integridade.",
+                "resultado": resultado,
+                "integridade": integridade
+            }), 422
+
+        publicacao = _publish_batch_to_client(
+            cliente=cliente,
+            arquivo_mae=save_path,
+            gerados=gerados,
+            lote=lote,
+            batch_root=batch_root,
+        )
+        print(
+            f"📚 [API v1] Publicado no painel cliente={cliente} lote={lote} "
+            f"filhos={publicacao.get('filhos_publicados')} "
+            f"copiados={publicacao.get('copiados')}"
+        )
+
         manifest = {
             "api": "v1",
             "cliente": cliente,
@@ -256,6 +386,7 @@ def api_v1_upload():
             "quantidade_gerados": len(arquivos),
             "arquivos": arquivos,
             "integridade": integridade,
+            "publicacao": publicacao,
             "status": "OK",
         }
         with open(_manifest_path(cliente, batch_id), "w", encoding="utf-8") as f:
