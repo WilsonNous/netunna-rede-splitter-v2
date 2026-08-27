@@ -258,6 +258,106 @@ def _publish_batch_to_client(cliente, arquivo_mae, gerados, lote, batch_root):
         "filhos_publicados": max(0, len(itens) - 1),
     }
 
+def _nsa_summary(cliente, nsa):
+    """
+    Retorna a visão consolidada de um NSA publicado na árvore oficial do cliente.
+
+    Exemplo:
+      clientes/ventuno/output/NSA_367/
+
+    Classifica os arquivos por tipo:
+      EEVC
+      EEFI
+      EEVD
+    """
+    cliente = _safe_cliente(cliente)
+
+    nsa = str(nsa or "").strip()
+    if not nsa.isdigit():
+        raise ValueError("NSA inválido.")
+
+    # Normaliza para os últimos 3 dígitos.
+    nsa = nsa[-3:].zfill(3)
+
+    cpaths = _client_paths(cliente)
+    lote = f"NSA_{nsa}"
+    pasta_nsa = os.path.join(cpaths["output"], lote)
+
+    if not os.path.isdir(pasta_nsa):
+        return None
+
+    arquivos = []
+
+    tipos = {
+        "EEVC": 0,
+        "EEFI": 0,
+        "EEVD": 0,
+        "OUTROS": 0,
+    }
+
+    for nome in sorted(os.listdir(pasta_nsa)):
+        path = os.path.join(pasta_nsa, nome)
+
+        if not os.path.isfile(path):
+            continue
+
+        nome_upper = nome.upper()
+
+        if "_EEVC" in nome_upper:
+            tipo = "EEVC"
+        elif "_EEFI" in nome_upper:
+            tipo = "EEFI"
+        elif "_EEVD" in nome_upper:
+            tipo = "EEVD"
+        else:
+            tipo = "OUTROS"
+
+        tipos[tipo] += 1
+
+        arquivos.append({
+            "nome": nome,
+            "tipo": tipo,
+            "tamanho": os.path.getsize(path),
+            "sha256": _sha256_file(path),
+        })
+
+    tipos_presentes = [
+        tipo
+        for tipo in ("EEVC", "EEFI", "EEVD")
+        if tipos[tipo] > 0
+    ]
+
+    # Para a regra atual da VENTUNO consideramos completo quando
+    # os três tipos foram publicados.
+    #
+    # Depois podemos transformar isso em configuração por cliente.
+    tipos_esperados = {"EEVC", "EEFI", "EEVD"}
+
+    pronto_para_smedi = (
+        set(tipos_presentes) == tipos_esperados
+        and len(arquivos) > 0
+    )
+
+    return {
+        "cliente": cliente,
+        "nsa": nsa,
+        "lote": lote,
+        "pasta": pasta_nsa,
+
+        "tipos": {
+            "EEVC": tipos["EEVC"],
+            "EEFI": tipos["EEFI"],
+            "EEVD": tipos["EEVD"],
+            "OUTROS": tipos["OUTROS"],
+        },
+
+        "tipos_presentes": tipos_presentes,
+        "quantidade": len(arquivos),
+
+        "pronto_para_smedi": pronto_para_smedi,
+
+        "arquivos": arquivos,
+    }
 
 @app.route("/api/v1/health", methods=["GET"])
 def api_v1_health():
@@ -460,6 +560,214 @@ def api_v1_batch_download(batch_id):
         download_name=zip_name
     )
 
+@app.route(
+    "/api/v1/clientes/<cliente>/nsas/<nsa>",
+    methods=["GET"]
+)
+def api_v1_nsa_status(cliente, nsa):
+    """
+    Consulta o NSA consolidado publicado para um cliente.
+
+    Exemplo:
+      GET /api/v1/clientes/ventuno/nsas/367
+    """
+    denied = _require_api_v1_key()
+    if denied:
+        return denied
+
+    cliente = _safe_cliente(cliente)
+
+    try:
+        resumo = _nsa_summary(cliente, nsa)
+
+    except ValueError as e:
+        return jsonify({
+            "ok": False,
+            "erro": str(e)
+        }), 400
+
+    if resumo is None:
+        return jsonify({
+            "ok": False,
+            "cliente": cliente,
+            "nsa": nsa,
+            "erro": "NSA não encontrado."
+        }), 404
+
+    resumo["download_url"] = (
+        f"/api/v1/clientes/{cliente}/nsas/"
+        f"{resumo['nsa']}/download"
+    )
+
+    return jsonify({
+        "ok": True,
+        **resumo
+    }), 200
+
+@app.route(
+    "/api/v1/clientes/<cliente>/nsas/<nsa>/download",
+    methods=["GET"]
+)
+def api_v1_nsa_download(cliente, nsa):
+    """
+    Baixa todos os arquivos filhos publicados de um NSA.
+
+    Diferentemente do endpoint /batches/<batch_id>/download,
+    este endpoint consolida EEVC + EEFI + EEVD.
+
+    Exemplo:
+      GET /api/v1/clientes/ventuno/nsas/367/download
+    """
+    denied = _require_api_v1_key()
+    if denied:
+        return denied
+
+    cliente = _safe_cliente(cliente)
+
+    try:
+        resumo = _nsa_summary(cliente, nsa)
+
+    except ValueError as e:
+        return jsonify({
+            "ok": False,
+            "erro": str(e)
+        }), 400
+
+    if resumo is None:
+        return jsonify({
+            "ok": False,
+            "cliente": cliente,
+            "nsa": nsa,
+            "erro": "NSA não encontrado."
+        }), 404
+
+    if resumo["quantidade"] == 0:
+        return jsonify({
+            "ok": False,
+            "cliente": cliente,
+            "nsa": resumo["nsa"],
+            "erro": "Nenhum arquivo disponível neste NSA."
+        }), 404
+
+    # Segurança operacional:
+    # por padrão só libera quando VC + FI + VD estiverem presentes.
+    #
+    # Para diagnóstico manual:
+    # ?permitir_incompleto=1
+    permitir_incompleto = (
+        request.args.get("permitir_incompleto", "0") == "1"
+    )
+
+    if (
+        not resumo["pronto_para_smedi"]
+        and not permitir_incompleto
+    ):
+        return jsonify({
+            "ok": False,
+            "cliente": cliente,
+            "nsa": resumo["nsa"],
+            "erro": "NSA ainda não está completo para envio ao SMEDI.",
+            "tipos": resumo["tipos"],
+            "quantidade": resumo["quantidade"],
+            "pronto_para_smedi": False,
+        }), 409
+
+    pasta_nsa = resumo["pasta"]
+
+    memory_file = io.BytesIO()
+    total_zip = 0
+
+    with zipfile.ZipFile(
+        memory_file,
+        "w",
+        zipfile.ZIP_DEFLATED
+    ) as zipf:
+
+        for item in resumo["arquivos"]:
+            nome = item["nome"]
+
+            file_path = os.path.abspath(
+                os.path.join(pasta_nsa, nome)
+            )
+
+            # Segurança contra path traversal.
+            if os.path.commonpath([
+                file_path,
+                os.path.abspath(pasta_nsa)
+            ]) != os.path.abspath(pasta_nsa):
+                continue
+
+            if not os.path.isfile(file_path):
+                continue
+
+            # Confere novamente o hash antes de entregar.
+            sha_atual = _sha256_file(file_path)
+
+            if sha_atual != item["sha256"]:
+                return jsonify({
+                    "ok": False,
+                    "erro": (
+                        "Arquivo alterado durante a geração "
+                        f"do ZIP: {nome}"
+                    )
+                }), 500
+
+            # ZIP sem subpastas:
+            # exatamente os arquivos que serão extraídos para SMEDI.
+            zipf.write(
+                file_path,
+                arcname=nome
+            )
+
+            total_zip += 1
+
+    if total_zip == 0:
+        return jsonify({
+            "ok": False,
+            "erro": "Nenhum arquivo disponível para compactação."
+        }), 404
+
+    memory_file.seek(0)
+
+    zip_name = (
+        f"{cliente}_NSA_{resumo['nsa']}_"
+        f"{datetime.now(TZ_BR).strftime('%Y%m%d_%H%M%S')}.zip"
+    )
+
+    print(
+        f"📦 [API v1] Download NSA consolidado "
+        f"cliente={cliente} "
+        f"nsa={resumo['nsa']} "
+        f"EEVC={resumo['tipos']['EEVC']} "
+        f"EEFI={resumo['tipos']['EEFI']} "
+        f"EEVD={resumo['tipos']['EEVD']} "
+        f"total={total_zip}"
+    )
+
+    response = send_file(
+        memory_file,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=zip_name
+    )
+
+    # Metadados úteis para o futuro agente Windows.
+    response.headers["X-Netunna-Cliente"] = cliente
+    response.headers["X-Netunna-NSA"] = resumo["nsa"]
+    response.headers["X-Netunna-EEVC"] = str(
+        resumo["tipos"]["EEVC"]
+    )
+    response.headers["X-Netunna-EEFI"] = str(
+        resumo["tipos"]["EEFI"]
+    )
+    response.headers["X-Netunna-EEVD"] = str(
+        resumo["tipos"]["EEVD"]
+    )
+    response.headers["X-Netunna-Total-Arquivos"] = str(
+        total_zip
+    )
+
+    return response
 
 # ==============================
 # Página principal
